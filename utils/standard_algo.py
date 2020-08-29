@@ -84,3 +84,74 @@ def LRU(blocktrace, frame):
     
     hitrate = hit / (hit + miss)
     return hitrate
+
+def LFU(blocktrace, frame):
+    
+    cache = set()
+    cache_frequency = defaultdict(int)
+    frequency = defaultdict(int)
+    
+    hit, miss = 0, 0
+    
+    for block in tqdm(blocktrace):
+        frequency[block] += 1
+        
+        if block in cache:
+            hit += 1
+            cache_frequency[block] += 1
+        
+        elif len(cache) < frame:
+            cache.add(block)
+            cache_frequency[block] += 1
+            miss += 1
+
+        else:
+            e, f = min(cache_frequency.items(), key=lambda a: a[1])
+            cache_frequency.pop(e)
+            cache.remove(e)
+            cache.add(block)
+            cache_frequency[block] = frequency[block]
+            miss += 1
+    
+    hitrate = hit / ( hit + miss )
+    return hitrate
+
+
+def FIFO(blocktrace, frame):
+    
+    cache = deque(maxlen=frame)
+    hit, miss = 0, 0
+    
+    for block in tqdm(blocktrace, leave=False):
+        
+        if block in cache:
+            hit += 1
+
+        else:
+            cache.append(block)
+            miss += 1
+    
+    hitrate = hit / (hit+miss)
+    return hitrate
+
+
+def LIFO(blocktrace, frame):
+    
+    cache = deque(maxlen=frame)
+    hit, miss = 0, 0
+    
+    for block in tqdm(blocktrace, leave=False):
+        if block in cache:
+            hit += 1
+            
+        elif len(cache) < frame:
+            cache.append(block)
+            miss += 1
+        
+        else:
+            cache.pop()
+            cache.append(block)
+            miss += 1
+            
+    hitrate = hit / (hit + miss)
+    return hitrate

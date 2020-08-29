@@ -25,6 +25,15 @@ def get_hit_rate_across_datasets(algo_name,cache_size):
         if algo_name == 'Belady':
             scores.append(standard_algo.Belady(trace,cache_size))
 
+        if algo_name == 'LFU':
+            scores.append(standard_algo.LFU(trace,cache_size))
+
+        if algo_name == 'FIFO':
+            scores.append(standard_algo.FIFO(trace,cache_size))
+
+        if algo_name == 'LIFO':
+            scores.append(standard_algo.LIFO(trace,cache_size))
+
     return scores, np.mean(scores)
 
 def get_hit_rate_across_size(algo_name ,data_path, size_min, size_max, sample_rate , csv_name):
