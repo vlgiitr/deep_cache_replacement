@@ -39,4 +39,18 @@ def LRU(blocktrace, frame):
 
 trace = df['Address'].tolist()
 
-print(LRU(trace,4096))
+scores = []
+
+size_list = list(range(50,5000,50))
+# size_list = [50,100]
+
+
+for i in range(len(size_list)):
+    print("I: ",i)
+    size = size_list[i]
+    scores.append(LRU(trace,size))
+
+df = pd.DataFrame(list(zip(size_list, scores)), 
+               columns =['size', 'hit_rate']) 
+
+df.to_csv('LRU.csv',index=False)
