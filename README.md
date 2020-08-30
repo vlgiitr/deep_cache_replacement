@@ -5,6 +5,6 @@ Source Code for AAAI 2020 student abstract submission
 **Team**
 
 - Deku
-- KKG
+- K2G
 - Omkar ( Suggest Cool name :P)
 - JJ
