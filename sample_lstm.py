@@ -1,10 +1,10 @@
 import torch
 import numpy as np
 import pandas as pd
-import utils.misc as misc
+import utils.dataset as dataset
 
 
-dataset = misc.get_complete_data_padded()
+_  ,dataset_belady_x ,dataset_belady_y = dataset_belady()
 
 
 
