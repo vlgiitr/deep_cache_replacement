@@ -6,42 +6,50 @@ from tqdm import tqdm
 import codecs
 
 def minDistance(arr): 
-      
-    mp = {}
-    indexes = {}
+    """
+Function to calculate future distance between equal elements
+input: A list arr
+output: A list distances with distance corresponding to each element of arr in the same order 
+"""      
+    mp = {} # dict to store the most recent and 2nd most recent index of an element
+    indexes = {} # dict to store all the indexes for an element
     distances = [] 
   
     minDistance = float('inf')
     for i in range(len(arr)): 
 
         if arr[i] not in indexes.keys(): 
-            mp[arr[i]] = [-1,i]
-            indexes[arr[i]] = [i]
+            mp[arr[i]] = [float('-inf'),i] # if we see the element for the first time initialize the list as -inf and current index 
+            indexes[arr[i]] = [i] # if we see the element for the first time initialize the list with the current index
         else: 
-            indexes[arr[i]].append(i)
-            mp[arr[i]] = [mp[arr[i]][1],i]
-            dist = i - mp[arr[i]][0]
-            distances[mp[arr[i]][0]] = dist
-        distances.append(minDistance)
+            indexes[arr[i]].append(i) # add the index to the corresponding list
+            mp[arr[i]] = [mp[arr[i]][1],i] # update the most recent and 2nd most recent index 
+            dist = i - mp[arr[i]][0] # calculate distance for the 2nd most recent index
+            distances[mp[arr[i]][0]] = dist # update the distance 
+        distances.append(minDistance) # add inf as the distance for the current element which will be updated later
     return distances
 
 def Freq(arr): 
-       
-    indexes = {}
-    frequencies = [1]*len(arr)
+    """
+Function to calculate future frequencies 
+input: A list arr
+output: A list frequencies with frequency corresponding to each element of arr in the same order 
+"""      
+    indexes = {} # dict to store all the indexes for an element
+    frequencies = [1]*len(arr) # initialize frequency list
 
     for i in range(len(arr)): 
 
         if arr[i] not in indexes.keys(): 
-            indexes[arr[i]] = [i]
+            indexes[arr[i]] = [i] # if we see the element for the first time initialize the list with the current index
         else: 
             indexes[arr[i]].append(i)
     for address in arr:
-        if len(indexes[address]) >=1:
-            freq = len(indexes[address]) - 1
-            frequencies[indexes[address][0]] = freq
-            indexes[address].pop(0)
-
+        if len(indexes[address]) >=1: #check if the element is repeated
+            freq = len(indexes[address]) - 1 # freq is the number of entries in the indexes list except the current element (which is always the 1st one)
+            frequencies[indexes[address][0]] = freq #update the frequency
+            indexes[address].pop(0) # remove the element for which frequency has been calculated from the indexes list
+    
     return frequencies
 
 def main(args):
@@ -101,4 +109,5 @@ if __name__ == '__main__':
     args =  parser.parse_args()
 
     main(args)
+
 
