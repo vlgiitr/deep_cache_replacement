@@ -27,7 +27,7 @@ Y = np.array([], dtype=np.int64).reshape(0,1)
 
 
 def get_complete_data_padded():
-    PATH = "csv_data"
+    PATH = "csv_data/cse240_project_ucsd"
     EXT = "*.csv"
     all_csv_files = [file
                     for path, subdir, files in os.walk(PATH)
@@ -47,7 +47,7 @@ def get_complete_data_padded():
 
     for i,path in enumerate(all_csv_files):
         df = pd.read_csv(path)
-        pc = df['PC'].apply(int, base=16)
+        pc = (df['PC'].apply(int, base=16)).zfill(35)
         address = df['Address'].apply(int, base=16)
         dataset[i,:len(address),0]  = pc
         dataset[i,:len(address),0]  = address
