@@ -71,7 +71,6 @@ def main(args):
     files = get_files(args.r)
 
     for f in files:
-
         count = 0
         page_counters = []
         addresses = []

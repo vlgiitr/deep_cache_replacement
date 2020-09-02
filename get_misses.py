@@ -101,7 +101,6 @@ def main(args):
     files = get_files(args.r)
 
     for f in files:
-
         count = 0
         addresses = []
         lru_misses = []

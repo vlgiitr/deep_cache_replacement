@@ -56,9 +56,10 @@ def get_data(p):
     return dataset
 
 class Token:
+
     address_sets = None # list containing the address sets for 4 parts (8 bits each) of the binary address
     pc_sets = None # list containing the pc sets for 4 parts (8 bits each) of the binary PC
-    
+  
     address_ixs = None # dict for allotting an index to each address
     pc_ixs = None # dict for allotting an index to each PC
 
