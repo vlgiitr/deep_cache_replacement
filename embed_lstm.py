@@ -14,16 +14,18 @@ def hex_to_bin(string):
     res = bin(int(string, scale)).zfill(32)
     return str(res) 
 
-def get_data():
+def get_data(p):
     """
     Extract data from 
     """
-    PATH = "csv_data/cse240_project_ucsd"
-    EXT = "*.csv"
-    all_csv_files = [file
-                    for path, subdir, files in os.walk(PATH)
-                    for file in glob(os.path.join(path, EXT))]
+    PATH = p
+    all_csvs = []
     len_list = []
+    files_list = [files for path, subdir, files in os.walk(PATH)]
+    for files in files_list:
+        for file in files:
+            all_csvs.append(file)
+    all_csv_files = [PATH + '/' +file for file in all_csvs]
 
     for path in all_csv_files:
         df = pd.read_csv(path)
@@ -54,11 +56,11 @@ def get_data():
     return dataset
 
 class Token:
-    address_sets = None
-    pc_sets = None
+    address_sets = None # list containing the address sets for 4 parts (8 bits each) of the binary address
+    pc_sets = None # list containing the pc sets for 4 parts (8 bits each) of the binary PC
     
-    address_ixs = None
-    pc_ixs = None
+    address_ixs = None # dict for allotting an index to each address
+    pc_ixs = None # dict for allotting an index to each PC
 
     def __init__(self):
         self.address_sets = [set()]*4
@@ -68,14 +70,14 @@ class Token:
         self.pc_ixs = [{}]*4
 
     def pc_tokens(self,pc):
-        pc_bytes = [pc[:8], pc[8:16], pc[16:24], pc[24:32]]
-        self.pc_sets[0].add(pc_bytes[0])
-        self.pc_sets[1].add(pc_bytes[1])
-        self.pc_sets[2].add(pc_bytes[2])
-        self.pc_sets[3].add(pc_bytes[3])
+        pc_bytes = [pc[:8], pc[8:16], pc[16:24], pc[24:32]] # calculate bytes
+        for i in range(4):
+            self.pc_sets[i].add(pc_bytes[i]) # add bytes to corresponding sets
+
+        # allot an index to the byte if not already done 
         for pc in pc_bytes:
             if pc[0] not in self.pc_ixs[0].keys():
-                self.pc_ixs[0][pc[0]] = len(self.pc_ixs[0])        
+                self.pc_ixs[0][pc[0]] = len(self.pc_ixs[0])      
             if pc[1] not in self.pc_ixs[1].keys():
                 self.pc_ixs[1][pc[1]] = len(self.pc_ixs[1])
             if pc[2] not in self.pc_ixs[2].keys():
@@ -85,10 +87,8 @@ class Token:
 
     def address_tokens(self,address):
         address_bytes = [address[:8], address[8:16], address[16:24], address[24:32]]
-        self.address_sets[0].add(address_bytes[0])
-        self.address_sets[1].add(address_bytes[1])
-        self.address_sets[2].add(address_bytes[2])
-        self.address_sets[3].add(address_bytes[3])
+        for i in range(4):
+            self.address_sets[i].add(address_bytes[i])
         for address in address_bytes:
             if address[0] not in self.address_ixs[0].keys():
                 self.address_ixs[0][address[0]] = len(self.address_ixs[0])        
@@ -100,16 +100,16 @@ class Token:
                 self.address_ixs[3][address[3]] = len(self.address_ixs[3])     
 
 class ByteEncoder(nn.Module):
-    address_embeddings = None
-    pc_embeddings = None
+    address_embeddings = None # list containing the address embedding layers
+    pc_embeddings = None # list containing the PC embedding layers
     
-    linears_address_1 = None
-    linears_address_2 = None
+    linears_address_1 = None # list containing the first set of address linear layers
+    linears_address_2 = None # list containing the second set of address linear layers
 
-    linears_pc_1 = None
-    linears_pc_2 = None
+    linears_pc_1 = None # list containing the first set of PC linear layers
+    linears_pc_2 = None # list containing the second set of PC linear layers
 
-    ##Alternate path
+    ##Alternate path (To be used if the output of the 1st linear layers are multiplied elemnet wise)
     # self.linear_address_2 = None
     # self.linear_ps_2 = None
 
@@ -121,6 +121,7 @@ class ByteEncoder(nn.Module):
 
         self.token = Token()
 
+        # initialize the index for each byte
         for pc,address in zip(pc,address):
             self.token.pc_tokens(pc = pc)
             self.token.address_tokens(address = address)
@@ -140,64 +141,61 @@ class ByteEncoder(nn.Module):
 
     def forward(self, inputs):
         
+        # 4 inputs (4 bytes) for each address
         address_inputs = []
-        address_inputs.append(torch.tensor([self.token.first_address_ix[ad[0:8]] for ad in inputs[1]], dtype=torch.long))
-        address_inputs.append(torch.tensor([self.token.second_address_ix[ad[8:16]] for ad in inputs[1]], dtype=torch.long))
-        address_inputs.append(torch.tensor([self.token.third_address_ix[ad[16:24]] for ad in inputs[1]], dtype=torch.long))
-        address_inputs.append(torch.tensor([self.token.fourth_address_ix[ad[24:32]] for ad in inputs[1]], dtype=torch.long))
+        for i in range(4):
+            # convert each byte to its index (input to the embedding)
+            address_inputs.append(torch.tensor([self.token.first_address_ix[ad[8*i:8*(i+1)]] for ad in inputs[1]], dtype=torch.long))
         
+        # 4 inputs (4 bytes) for each PC
         pc_inputs = []
-        pc_inputs.append(torch.tensor([self.token.first_pc_ix[pc[0:8]] for pc in inputs[0]], dtype=torch.long))
-        pc_inputs.append(torch.tensor([self.token.second_pc_ix[pc[8:16]] for pc in inputs[0]], dtype=torch.long))
-        pc_inputs.append(torch.tensor([self.token.third_pc_ix[pc[16:24]] for pc in inputs[0]], dtype=torch.long))
-        pc_inputs.append(torch.tensor([self.token.fourth_pc_ix[pc[24:32]] for pc in inputs[0]], dtype=torch.long))
+        for i in range(4):
+            # convert each byte to its index (input to the embedding)
+            pc_inputs.append(torch.tensor([self.token.first_pc_ix[pc[8*i:8*(i+1)]] for pc in inputs[0]], dtype=torch.long))
 
+        # Embedding Calculation for address
         address_embeds = []
-        address_embeds.append(self.address_embeddings[0](address_inputs[0]))
-        address_embeds.append(self.address_embeddings[1](address_inputs[1]))
-        address_embeds.append(self.address_embeddings[2](address_inputs[2]))
-        address_embeds.append(self.address_embeddings[3](address_inputs[3]))
+        for i in range(4):
+            address_embeds.append(self.address_embeddings[i](address_inputs[i]))
 
+        # Embedding Calculation for PC
         pc_embeds = []
-        pc_embeds.append(self.pc_embeddings[0](pc_inputs[0]))
-        pc_embeds.append(self.pc_embeddings[1](pc_inputs[1]))
-        pc_embeds.append(self.pc_embeddings[2](pc_inputs[2]))
-        pc_embeds.append(self.pc_embeddings[3](pc_inputs[3]))
+        for i in range(4):
+            pc_embeds.append(self.pc_embeddings[i](pc_inputs[i]))
 
+        # outputs by 1st set of linear layers for address
         address_outs_1 = []
-        address_outs_1.append(F.relu(self.linears_address_1[0](address_embeds[0])))
-        address_outs_1.append(F.relu(self.linears_address_1[1](address_embeds[1])))
-        address_outs_1.append(F.relu(self.linears_address_1[2](address_embeds[2])))
-        address_outs_1.append(F.relu(self.linears_address_1[3](address_embeds[3])))
+        for i in range(4):
+            address_outs_1.append(F.relu(self.linears_address_1[i](address_embeds[i])))
 
+        # outputs by 1st set of linear layers for PC
         pc_outs_1 = []
-        pc_outs_1.append(F.relu(self.linears_pc_1[0](pc_embeds[0])))
-        pc_outs_1.append(F.relu(self.linears_pc_1[1](pc_embeds[1])))
-        pc_outs_1.append(F.relu(self.linears_pc_1[2](pc_embeds[2])))
-        pc_outs_1.append(F.relu(self.linears_pc_1[3](pc_embeds[3])))
+        for i in range(4):
+            pc_outs_1.append(F.relu(self.linears_pc_1[i](pc_embeds[i])))
 
+        # outputs by 2nd set of linear layers for address
         address_outs_2 = []
-        address_outs_2.append(F.relu(self.linears_address_2[0](address_outs_1[0])))
-        address_outs_2.append(F.relu(self.linears_address_2[1](address_outs_1[1])))
-        address_outs_2.append(F.relu(self.linears_address_2[2](address_outs_1[2])))
-        address_outs_2.append(F.relu(self.linears_address_2[3](address_outs_1[3])))
-
+        for i in range(4):
+            address_outs_2.append(F.relu(self.linears_address_2[i](address_outs_1[i])))
+        
+        # outputs by 2nd set of linear layers for PC
         pc_outs_2 = []
-        pc_outs_2.append(F.relu(self.linears_pc_2[0](pc_outs_1[0])))
-        pc_outs_2.append(F.relu(self.linears_pc_2[1](pc_outs_1[1])))
-        pc_outs_2.append(F.relu(self.linears_pc_2[2](pc_outs_1[2])))
-        pc_outs_2.append(F.relu(self.linears_pc_2[3](pc_outs_1[3])))
+        for i in range(4):
+            pc_outs_2.append(F.relu(self.linears_pc_2[i](pc_outs_1[i])))
 
+        # Concatenate the 4 outputs for address and PC separately
         ad_out = torch.cat(address_outs_2[0], address_outs_2[1], address_outs_2[2], address_outs_2[3],axis=0)
         pc_out = torch.cat(pc_outs_2[0], pc_outs_2[1], pc_outs_2[2], pc_outs_2[3],axis=0)
 
-        ## Alternate path
+        ## Alternate path (multiply the outputs from 1st linear layers for address and PC networks)
         # ad_out_2 = torch.mul(address_outs_1[0], address_outs_1[1], address_outs_1[2], address_outs_1[3])
         # ps_out_2 = torch.mul(pc_outs_1[0], pc_outs_1[1], pc_outs_1[2], pc_outs_1[3])
         
+        ## Calculate final output after multiplication
         # ad_out = F.relu(self.linear_address_2(ad_out_2))
         # ps_out = F.relu(self.linear_ps_2(ps_out_2))
 
+        # Concatenate Outputs from PC and Address W2Vec
         lstm_input = torch.cat(ad_out,pc_out)
 
         return lstm_input
