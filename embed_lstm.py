@@ -8,6 +8,8 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from collections import Counter, deque, defaultdict
+import argparse
+from tqdm import tqdm
 
 def hex_to_bin(string):
     scale = 16
@@ -34,7 +36,7 @@ def get_data(p):
     max_len = np.max(len_list)
     num_datasets = len(len_list)
 
-    dataset = np.zeros((num_datasets,max_len,2), dtype = "int")
+    dataset = []
     print(dataset.shape)
 
     for i,path in enumerate(all_csv_files):
@@ -50,8 +52,8 @@ def get_data(p):
                 else:
                     pcs.append(hex_to_bin(row[1]))
                     addresses.append(hex_to_bin(row[2]))
-        dataset[i,:len(pcs),0] = pcs
-        dataset[i,:len(addresses),1] = addresses
+
+        dataset.append((pcs,addresses))
     
     return dataset
 
@@ -101,8 +103,8 @@ class Token:
                 self.address_ixs[3][address[3]] = len(self.address_ixs[3])     
 
 class ByteEncoder(nn.Module):
-    address_embeddings = None # list containing the address embedding layers
-    pc_embeddings = None # list containing the PC embedding layers
+    address_embeddings = [] # list containing the address embedding layers
+    pc_embeddings = [] # list containing the PC embedding layers
     
     linears_address_1 = None # list containing the first set of address linear layers
     linears_address_2 = None # list containing the second set of address linear layers
@@ -110,35 +112,31 @@ class ByteEncoder(nn.Module):
     linears_pc_1 = None # list containing the first set of PC linear layers
     linears_pc_2 = None # list containing the second set of PC linear layers
 
-    ##Alternate path (To be used if the output of the 1st linear layers are multiplied elemnet wise)
-    # self.linear_address_2 = None
-    # self.linear_ps_2 = None
-
     embedding_size = 32
+    vocab_sizes_pc = [] # list containing the vocab sizes for PCs
+    vocab_sizes_address = [] # list containing the vocab sizes for addresses
+    context_size = None
     token = None
 
-    def __init__(self,pcs,addresses):
+    def __init__(self,token,context_size):
         super(ByteEncoder,self).__init__()
 
-        self.token = Token()
+        self.token = token
+        for i in range(4):
+            self.vocab_sizes_address.append(len(self.token.address_sets[i]))
+            self.vocab_sizes_pc.append(len(self.token.pc_sets[i]))
+        self.context_size = context_size
 
-        # initialize the index for each byte
-        for pc,address in zip(pc,address):
-            self.token.pc_tokens(pc = pc)
-            self.token.address_tokens(address = address)
+        for i in range(4):
+            self.address_embeddings.append(nn.Embedding(self.vocab_sizes_address[i],self.embedding_size))
+            self.pc_embeddings.append(nn.Embedding(self.vocab_sizes_pc[i],self.embedding_size))
 
-        self.address_embeddings = [nn.Embedding(256,self.embedding_size)]*4
-        self.pc_embeddings = [nn.Embedding(256,self.embedding_size)]*4
+        self.linears_address_1 = [nn.Linear(self.embedding_size * self.context_size,32)]*4
+        self.linears_pc_1 = [nn.Linear(self.embedding_size * self.context_size,32)]*4
 
-        self.linears_address_1 = [nn.Linear(self.embedding_size,8)]*4
-        self.linears_address_2 = [nn.Linear(8,2)]*4
-
-        self.linears_pc_1 = [nn.Linear(self.embedding_size,8)]*4
-        self.linears_pc_2 = [nn.Linear(8,2)]*4 
-
-        ##Alternate path
-        # self.linear_address_2 = nn.Linear(8,4)
-        # self.linear_ps_2 = nn.Linear(8,4)       
+        for i in range(4):
+            self.linears_address_2.append(nn.Embedding(32,self.vocab_sizes_address[i]))
+            self.linears_pc_2.append(nn.Embedding(32,self.vocab_sizes_pc[i]))   
 
     def forward(self, inputs):
         
@@ -157,12 +155,12 @@ class ByteEncoder(nn.Module):
         # Embedding Calculation for address
         address_embeds = []
         for i in range(4):
-            address_embeds.append(self.address_embeddings[i](address_inputs[i]))
+            address_embeds.append(self.address_embeddings[i](address_inputs[i]).view((1, -1)))
 
         # Embedding Calculation for PC
         pc_embeds = []
         for i in range(4):
-            pc_embeds.append(self.pc_embeddings[i](pc_inputs[i]))
+            pc_embeds.append(self.pc_embeddings[i](pc_inputs[i]).view((1, -1)))
 
         # outputs by 1st set of linear layers for address
         address_outs_1 = []
@@ -188,15 +186,90 @@ class ByteEncoder(nn.Module):
         ad_out = torch.cat(address_outs_2[0], address_outs_2[1], address_outs_2[2], address_outs_2[3],axis=0)
         pc_out = torch.cat(pc_outs_2[0], pc_outs_2[1], pc_outs_2[2], pc_outs_2[3],axis=0)
 
-        ## Alternate path (multiply the outputs from 1st linear layers for address and PC networks)
-        # ad_out_2 = torch.mul(address_outs_1[0], address_outs_1[1], address_outs_1[2], address_outs_1[3])
-        # ps_out_2 = torch.mul(pc_outs_1[0], pc_outs_1[1], pc_outs_1[2], pc_outs_1[3])
-        
-        ## Calculate final output after multiplication
-        # ad_out = F.relu(self.linear_address_2(ad_out_2))
-        # ps_out = F.relu(self.linear_ps_2(ps_out_2))
-
         # Concatenate Outputs from PC and Address W2Vec
-        lstm_input = torch.cat(ad_out,pc_out)
+        out = torch.cat(pc_out,ad_out)
 
-        return lstm_input
+        #Calculate log_probs
+        log_probs = F.log_softmax(out, dim=2)
+
+        return log_probs
+
+def train(inputs,epochs):
+    pcs = inputs[0]
+    addresses = inputs[1]
+    
+    token = Token()
+
+    # initialize the index for each byte
+    for pc,address in zip(pc,address):
+        token.pc_tokens(pc = pc)
+        token.address_tokens(address = address)
+    
+    losses = []
+    encoder = ByteEncoder(token=token,context_size=2)
+    loss_function = nn.NLLLoss()
+    optimizer = optim.Adam(encoder.parameters(), lr=0.001)
+    best_loss = 1000000000000
+    
+    address_trigrams = []
+    pc_trigrams = []
+
+    # Calculate 3 consecutive values for address and pc respectively
+    for i in range(4):
+        address_trigrams.append([([addresses[i], addresses[i + 1]], addresses[i + 2])
+            for i in range(len(addresses) - 2)])
+        pc_trigrams.append([([pcs[i], pcs[i + 1]], pcs[i + 2])
+            for i in range(len(pcs) - 2)])
+
+    trigrams = (pc_trigrams,address_trigrams)
+
+    for epoch in tqdm(range(epochs)):
+        total_loss = 0
+        for pc_trigram,address_trigram in trigrams:
+
+            inputs = (pc_trigram[0],address_trigram[0]) # input to the model are 2 consecutive values for each pc and address
+
+            encoder.zero_grad()
+
+            log_probs = encoder(inputs) 
+
+            ## Overlook this 
+            # pc_target = torch.cat(token.pc_ixs[pc_trigram[1][0:8]],token.pc_ixs[pc_trigram[1][8:16]],
+            #             token.pc_ixs[pc_trigram[1][16,24]],token.pc_ixs[pc_trigram[1][24:32]])
+            
+            # address_target = torch.cat(token.address_ixs[address_trigram[1][0:8]],token.address_ixs[address_trigram[1][8:16]],
+            #             token.pc_ixs[address_trigram[1][16,24]],token.address_ixs[address_trigram[1][24:32]])
+            
+            target = torch.cat(pc_trigram[1],address_trigram[1])
+
+            loss = loss_function(log_probs, target)
+
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+        losses.append(total_loss)
+        print('-----------------------------')
+        print('Epoch {} loss: {}'.format(epoch+1,total_loss))
+        print('-----------------------------')
+        if total_loss < best_loss:
+            torch.save(encoder, 'byte_encoder.pt')
+            print('Saved at epoch : {}'.format(epoch+1))
+
+def main(args):
+    dataset = get_data(args.path)
+
+    for i in range(len(dataset)):
+        if i==0: # train on only one file for now
+            train(dataset[i])
+            break
+
+
+
+if __name__=='__main__':
+    parser = argparse.ArgumentParser(description='HTMLPhish')
+    parser.add_argument('--path', type=str, required=True,
+                        help='path to dir containing the csv files')
+    args = parser.parse_args()
+
+    main(args)
