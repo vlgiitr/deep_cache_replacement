@@ -77,19 +77,6 @@ def main(args):
     print('Count: {}'.format(count))
     print('---------------------------')
 
-# # For data fri]om csv file
-#     with open(args.r,'r') as file:
-#         reader = csv.reader(file)
-#         for row in reader:
-#             count+=1
-#             if count == 1:
-#                 continue
-#             else:
-#                 page_counters.append(row[1])
-#                 addresses.append(row[2])
-#     print('---------------------------')
-#     print('Count: {}'.format(count))
-#     print('---------------------------')
 
     frequencies = Freq(addresses)
     distances = minDistance(addresses)
