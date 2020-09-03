@@ -10,34 +10,27 @@ import pandas as pd
 from collections import Counter, deque, defaultdict
 import argparse
 from tqdm import tqdm
+from torchsummary import summary
 
 def hex_to_bin(string):
     scale = 16
-    res = bin(int(string, scale)).zfill(32)
+    res = bin(int(string, scale)).split('0b')[1].zfill(32)
     return str(res) 
 
 def get_data(p):
     """
     Extract data from 
     """
-    PATH = p
-    all_csvs = []
-    len_list = []
-    files_list = [files for path, subdir, files in os.walk(PATH)]
-    for files in files_list:
-        for file in files:
-            all_csvs.append(file)
-    all_csv_files = [PATH + '/' +file for file in all_csvs]
-
-    for path in all_csv_files:
-        df = pd.read_csv(path)
-        len_list.append(df.shape[0])
-
-    max_len = np.max(len_list)
-    num_datasets = len(len_list)
+    # PATH = p
+    # all_csvs = []
+    # len_list = []
+    # files_list = [files for path, subdir, files in os.walk(PATH)]
+    # for files in files_list:
+    #     for file in files:
+    #         all_csvs.append(file)
+    all_csv_files = [p]
 
     dataset = []
-    print(dataset.shape)
 
     for i,path in enumerate(all_csv_files):
         addresses = []
@@ -54,23 +47,26 @@ def get_data(p):
                     addresses.append(hex_to_bin(row[2]))
 
         dataset.append((pcs,addresses))
+        print('Number of csvs read: {}'.format(len(dataset)))
     
     return dataset
 
 class Token:
 
-    address_sets = None # list containing the address sets for 4 parts (8 bits each) of the binary address
-    pc_sets = None # list containing the pc sets for 4 parts (8 bits each) of the binary PC
+    address_sets = [] # list containing the address sets for 4 parts (8 bits each) of the binary address
+    pc_sets = [] # list containing the pc sets for 4 parts (8 bits each) of the binary PC
   
-    address_ixs = None # dict for allotting an index to each address
-    pc_ixs = None # dict for allotting an index to each PC
+    address_ixs = [] # dict for allotting an index to each address
+    pc_ixs = [] # dict for allotting an index to each PC
 
     def __init__(self):
-        self.address_sets = [set()]*4
-        self.pc_sets = [set()]*4
+        for i in range(4):
+            self.address_sets.append(set())
+            self.pc_sets.append(set())
 
-        self.address_ixs = [{}]*4
-        self.pc_ixs = [{}]*4
+        for i in range(4):
+            self.address_ixs.append({})
+            self.pc_ixs.append({})
 
     def pc_tokens(self,pc):
         pc_bytes = [pc[:8], pc[8:16], pc[16:24], pc[24:32]] # calculate bytes
@@ -78,79 +74,78 @@ class Token:
             self.pc_sets[i].add(pc_bytes[i]) # add bytes to corresponding sets
 
         # allot an index to the byte if not already done 
-        for pc in pc_bytes:
-            if pc[0] not in self.pc_ixs[0].keys():
-                self.pc_ixs[0][pc[0]] = len(self.pc_ixs[0])      
-            if pc[1] not in self.pc_ixs[1].keys():
-                self.pc_ixs[1][pc[1]] = len(self.pc_ixs[1])
-            if pc[2] not in self.pc_ixs[2].keys():
-                self.pc_ixs[2][pc[2]] = len(self.pc_ixs[2])        
-            if pc[3] not in self.pc_ixs[3].keys():
-                self.pc_ixs[3][pc[3]] = len(self.pc_ixs[3])  
+        if pc_bytes[0] not in self.pc_ixs[0].keys():
+            self.pc_ixs[0][pc_bytes[0]] = len(self.pc_ixs[0])      
+        if pc_bytes[1] not in self.pc_ixs[1].keys():
+            self.pc_ixs[1][pc_bytes[1]] = len(self.pc_ixs[1])
+        if pc_bytes[2] not in self.pc_ixs[2].keys():
+            self.pc_ixs[2][pc_bytes[2]] = len(self.pc_ixs[2])        
+        if pc_bytes[3] not in self.pc_ixs[3].keys():
+            self.pc_ixs[3][pc_bytes[3]] = len(self.pc_ixs[3])  
 
     def address_tokens(self,address):
         address_bytes = [address[:8], address[8:16], address[16:24], address[24:32]]
         for i in range(4):
             self.address_sets[i].add(address_bytes[i])
-        for address in address_bytes:
-            if address[0] not in self.address_ixs[0].keys():
-                self.address_ixs[0][address[0]] = len(self.address_ixs[0])        
-            if address[1] not in self.address_ixs[1].keys():
-                self.address_ixs[1][address[1]] = len(self.address_ixs[1])
-            if address[2] not in self.address_ixs[2].keys():
-                self.address_ixs[2][address[2]] = len(self.address_ixs[2])        
-            if address[3] not in self.address_ixs[3].keys():
-                self.address_ixs[3][address[3]] = len(self.address_ixs[3])     
+
+        if address_bytes[0] not in self.address_ixs[0].keys():
+            self.address_ixs[0][address_bytes[0]] = len(self.address_ixs[0])        
+        if address_bytes[1] not in self.address_ixs[1].keys():
+            self.address_ixs[1][address_bytes[1]] = len(self.address_ixs[1])
+        if address_bytes[2] not in self.address_ixs[2].keys():
+            self.address_ixs[2][address_bytes[2]] = len(self.address_ixs[2])        
+        if address_bytes[3] not in self.address_ixs[3].keys():
+            self.address_ixs[3][address_bytes[3]] = len(self.address_ixs[3])     
 
 class ByteEncoder(nn.Module):
     address_embeddings = [] # list containing the address embedding layers
     pc_embeddings = [] # list containing the PC embedding layers
     
-    linears_address_1 = None # list containing the first set of address linear layers
-    linears_address_2 = None # list containing the second set of address linear layers
+    linears_address_1 = [] # list containing the first set of address linear layers
+    linears_address_2 = [] # list containing the second set of address linear layers
 
-    linears_pc_1 = None # list containing the first set of PC linear layers
-    linears_pc_2 = None # list containing the second set of PC linear layers
+    linears_pc_1 = [] # list containing the first set of PC linear layers
+    linears_pc_2 = [] # list containing the second set of PC linear layers
 
-    embedding_size = 32
-    vocab_sizes_pc = [] # list containing the vocab sizes for PCs
-    vocab_sizes_address = [] # list containing the vocab sizes for addresses
-    context_size = None
-    token = None
 
-    def __init__(self,token,context_size):
+    def __init__(self,vocab_sizes_address,vocab_sizes_pc,context_size,embedding_size,hidden_size):
         super(ByteEncoder,self).__init__()
 
-        self.token = token
         for i in range(4):
-            self.vocab_sizes_address.append(len(self.token.address_sets[i]))
-            self.vocab_sizes_pc.append(len(self.token.pc_sets[i]))
-        self.context_size = context_size
+            self.address_embeddings.append(nn.Embedding(vocab_sizes_address[i],embedding_size))
+            self.pc_embeddings.append(nn.Embedding(vocab_sizes_pc[i],embedding_size))
 
         for i in range(4):
-            self.address_embeddings.append(nn.Embedding(self.vocab_sizes_address[i],self.embedding_size))
-            self.pc_embeddings.append(nn.Embedding(self.vocab_sizes_pc[i],self.embedding_size))
-
-        self.linears_address_1 = [nn.Linear(self.embedding_size * self.context_size,32)]*4
-        self.linears_pc_1 = [nn.Linear(self.embedding_size * self.context_size,32)]*4
+            self.linears_address_1.append(nn.Linear(embedding_size * context_size,hidden_size))
+            self.linears_pc_1.append(nn.Linear(embedding_size * context_size,hidden_size))
 
         for i in range(4):
-            self.linears_address_2.append(nn.Embedding(32,self.vocab_sizes_address[i]))
-            self.linears_pc_2.append(nn.Embedding(32,self.vocab_sizes_pc[i]))   
+            self.linears_address_2.append(nn.Linear(hidden_size,vocab_sizes_address[i]))
+            self.linears_pc_2.append(nn.Linear(hidden_size,vocab_sizes_pc[i]))
+        
+        self.address_embeddings = nn.ModuleList(self.address_embeddings)
+        self.linears_address_1 = nn.ModuleList(self.linears_address_1)
+        self.linears_address_2 = nn.ModuleList(self.linears_address_2)
+        
+        self.pc_embeddings = nn.ModuleList(self.pc_embeddings)
+        self.linears_pc_1 = nn.ModuleList(self.linears_pc_1)
+        self.linears_pc_2 = nn.ModuleList(self.linears_pc_2)
 
-    def forward(self, inputs):
+               
+
+    def forward(self, inputs,token):
         
         # 4 inputs (4 bytes) for each address
         address_inputs = []
         for i in range(4):
             # convert each byte to its index (input to the embedding)
-            address_inputs.append(torch.tensor([self.token.first_address_ix[ad[8*i:8*(i+1)]] for ad in inputs[1]], dtype=torch.long))
+            address_inputs.append(torch.tensor([token.address_ixs[i][ad[8*i:8*(i+1)]] for ad in inputs[1]], dtype=torch.long))
         
         # 4 inputs (4 bytes) for each PC
         pc_inputs = []
         for i in range(4):
             # convert each byte to its index (input to the embedding)
-            pc_inputs.append(torch.tensor([self.token.first_pc_ix[pc[8*i:8*(i+1)]] for pc in inputs[0]], dtype=torch.long))
+            pc_inputs.append(torch.tensor([token.pc_ixs[i][pc[8*i:8*(i+1)]] for pc in inputs[0]], dtype=torch.long))
 
         # Embedding Calculation for address
         address_embeds = []
@@ -182,34 +177,48 @@ class ByteEncoder(nn.Module):
         for i in range(4):
             pc_outs_2.append(F.relu(self.linears_pc_2[i](pc_outs_1[i])))
 
-        # Concatenate the 4 outputs for address and PC separately
-        ad_out = torch.cat(address_outs_2[0], address_outs_2[1], address_outs_2[2], address_outs_2[3],axis=0)
-        pc_out = torch.cat(pc_outs_2[0], pc_outs_2[1], pc_outs_2[2], pc_outs_2[3],axis=0)
-
-        # Concatenate Outputs from PC and Address W2Vec
-        out = torch.cat(pc_out,ad_out)
-
         #Calculate log_probs
-        log_probs = F.log_softmax(out, dim=2)
+        log_probs = []
+        for i in range(4):
+            log_probs.append(F.log_softmax(pc_outs_2[i], dim=1))
+        for i in range(4):
+            log_probs.append(F.log_softmax(address_outs_2[i], dim=1))
 
         return log_probs
 
-def train(inputs,epochs):
+def w2vec_loss(outputs,targets):
+    loss = torch.tensor(0,dtype=torch.float)
+    loss_function = nn.NLLLoss()
+    for output,target in zip(outputs,targets):
+        loss+=loss_function(output,target)
+    return loss
+
+def train(inputs,args):
     pcs = inputs[0]
     addresses = inputs[1]
     
     token = Token()
 
     # initialize the index for each byte
-    for pc,address in zip(pc,address):
+    for pc,address in zip(pcs,addresses):
         token.pc_tokens(pc = pc)
         token.address_tokens(address = address)
+
+    vocab_sizes_pc = [] # list containing the vocab sizes for PCs
+    vocab_sizes_address = [] # list containing the vocab sizes for addresses
+    
+    for i in range(4):
+        vocab_sizes_address.append(len(token.address_sets[i]))
+        vocab_sizes_pc.append(len(token.pc_sets[i]))
     
     losses = []
-    encoder = ByteEncoder(token=token,context_size=2)
-    loss_function = nn.NLLLoss()
-    optimizer = optim.Adam(encoder.parameters(), lr=0.001)
-    best_loss = 1000000000000
+    encoder = ByteEncoder(vocab_sizes_address=vocab_sizes_address,vocab_sizes_pc=vocab_sizes_pc,context_size=args.context_size,
+                            embedding_size=args.embed_dim,hidden_size=args.hidden_size)
+    print(summary(encoder))
+   
+    optimizer = optim.Adam(encoder.parameters(), lr=3e-3,weight_decay=1e-2)
+    best_loss = 1e10
+    best_epoch = 0
     
     address_trigrams = []
     pc_trigrams = []
@@ -220,48 +229,63 @@ def train(inputs,epochs):
             for i in range(len(addresses) - 2)])
         pc_trigrams.append([([pcs[i], pcs[i + 1]], pcs[i + 2])
             for i in range(len(pcs) - 2)])
+    
+    print('------------------------------')
+    print('CREATING TRIGRAMS')
+    print('------------------------------')
+    trigrams = []
+    for i in tqdm(range(len(pc_trigrams))):
+        trigrams.append((pc_trigrams[i],address_trigrams[i]))
+    
 
-    trigrams = (pc_trigrams,address_trigrams)
-
-    for epoch in tqdm(range(epochs)):
+    for epoch in tqdm(range(args.epochs)):
         total_loss = 0
-        for pc_trigram,address_trigram in trigrams:
+        for trigram in trigrams:
 
-            inputs = (pc_trigram[0],address_trigram[0]) # input to the model are 2 consecutive values for each pc and address
-
+            inputs = (trigram[0][0][0],trigram[1][0][0]) # input to the model are 2 consecutive values for each pc and address
             encoder.zero_grad()
 
-            log_probs = encoder(inputs) 
+            log_probs = encoder(inputs,token) 
 
-            ## Overlook this 
-            # pc_target = torch.cat(token.pc_ixs[pc_trigram[1][0:8]],token.pc_ixs[pc_trigram[1][8:16]],
-            #             token.pc_ixs[pc_trigram[1][16,24]],token.pc_ixs[pc_trigram[1][24:32]])
-            
-            # address_target = torch.cat(token.address_ixs[address_trigram[1][0:8]],token.address_ixs[address_trigram[1][8:16]],
-            #             token.pc_ixs[address_trigram[1][16,24]],token.address_ixs[address_trigram[1][24:32]])
-            
-            target = torch.cat(pc_trigram[1],address_trigram[1])
+            pc_trigram = trigram[0][1]
+            address_trigram = trigram[1][1]
 
-            loss = loss_function(log_probs, target)
+            targets = []
+            for i in range(4):
+                targets.append(torch.tensor([token.pc_ixs[i][pc_trigram[1][8*i:8*(i+1)]]],dtype=torch.long))
+            
+            for i in range(4):
+                targets.append(torch.tensor([token.address_ixs[i][address_trigram[1][8*i:8*(i+1)]]],dtype=torch.long))
+
+            loss = w2vec_loss(log_probs,targets)
 
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
         losses.append(total_loss)
-        print('-----------------------------')
-        print('Epoch {} loss: {}'.format(epoch+1,total_loss))
-        print('-----------------------------')
+
+        if (epoch+1)%20 == 0:
+            print('Epoch {} with loss: {}'.format(epoch+1,total_loss))
+            print('-----------------------------')
+
         if total_loss < best_loss:
-            torch.save(encoder, 'byte_encoder.pt')
-            print('Saved at epoch : {}'.format(epoch+1))
+            best_loss = total_loss
+            best_epoch = epoch+1
+            torch.save(encoder, 'w2vec_checkpoints/byte_encoder.pt')
+            print('Saved at epoch {} with loss: {}'.format(epoch+1,total_loss))
+            print('-----------------------------')
+    print('Best Epoch: {}'.format(best_epoch))
 
 def main(args):
     dataset = get_data(args.path)
 
+    if not os.path.exists('w2vec_checkpoints'):
+        os.makedirs('w2vec_checkpoints')
+
     for i in range(len(dataset)):
         if i==0: # train on only one file for now
-            train(dataset[i])
+            train(dataset[i],args)
             break
 
 
@@ -270,6 +294,14 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='HTMLPhish')
     parser.add_argument('--path', type=str, required=True,
                         help='path to dir containing the csv files')
+    parser.add_argument('--epochs', type=int, default=10,
+                        help='number of epochs')
+    parser.add_argument('--embed_dim', type=int, default=32,
+                        help='embedding dimension')
+    parser.add_argument('--context_size', type=int, default=2,
+                        help='context_size')       
+    parser.add_argument('--hidden_size', type=int, default=128,
+                        help='dimension of hidden layer')                  
     args = parser.parse_args()
 
     main(args)
