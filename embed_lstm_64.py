@@ -17,6 +17,19 @@ def hex_to_bin(string):
     res = bin(int(string, scale)).split('0b')[1].zfill(64)
     return str(res) 
 
+def get_vocab_bytes():
+    count = 0
+    byte_list = []
+    with open('bytes.csv','r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            count+=1
+            if count == 1:
+                continue
+            else:
+                byte_list.append(row[1])
+    return byte_list
+
 def get_data(p):
     """
     Extract data from 
@@ -71,7 +84,7 @@ class Token:
     def pc_tokens(self,pc):
         pc_bytes = []
         for i in range(8):
-            pc_bytes.append(pc[8*i:8*(i+1)]) # calculate bytes
+            pc_bytes.append(pc) # calculate bytes
 
         for i in range(8):
             self.pc_sets[i].add(pc_bytes[i]) # add bytes to corresponding sets
@@ -84,7 +97,7 @@ class Token:
     def address_tokens(self,address):
         address_bytes = []
         for i in range(8):
-            address_bytes.append(address[8*i:8*(i+1)]) # calculate bytes
+            address_bytes.append(address) # calculate bytes
         
         for i in range(8):
             self.address_sets[i].add(address_bytes[i]) # add bytes to corresponding sets
@@ -260,23 +273,34 @@ def train(trainer,inputs,tkn,arguments,num):
             print('----------')
     print('Best Epoch: {}'.format(best_epoch))
 
+def get_address(index,model,outputs):
+    address = ''
+    for i in range(8):
+        address += list(model.token.address_ixs.keys()[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i+8]))])
+    return address
+
+def get_address(index,model,outputs):
+    pc = ''
+    for i in range(8):
+        pc += list(model.token.address_ixs.keys())[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i]))]
+    return pc
+
+
 def main(args):
     dataset = get_data(args.path)
 
     if not os.path.exists('w2vec_checkpoints'):
         os.makedirs('w2vec_checkpoints')
 
+    bytes_list = get_vocab_bytes()
     token = Token()
     
     print('Preparing Tokens')
     print('------------------------------------')
-    for i in tqdm(range(len(dataset))):
-        pcs = dataset[i][0]
-        addresses = dataset[i][1]
-        # initialize the index for each byte
-        for pc,address in zip(pcs,addresses):
-            token.pc_tokens(pc = pc)
-            token.address_tokens(address = address)
+    # initialize the index for each byte
+    for b in bytes_list:
+        token.pc_tokens(pc = b)
+        token.address_tokens(address = b)
 
     vocab_sizes_pc = [] # list containing the vocab sizes for PCs
     vocab_sizes_address = [] # list containing the vocab sizes for addresses
