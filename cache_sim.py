@@ -3,9 +3,8 @@ import pandas as pd
 import numpy as np
 import random
 
-stream = np.random.randint(-20,100,10)
 
-
+### Define Custom Policy Functions
 def admit_policy(request) :
     """
     admit policy
@@ -24,7 +23,7 @@ def evict_policy(cache) :
     idx = np.random.randint(0, len(cache))
     removed = cache[idx]
     cache = cache.drop([idx]).astype(int)
-    print(f'Removed {removed}\n{cache.dtype}\n')
+    print(f'Removed : {removed}\n\n')
     return idx, cache
 
 def embed_policy(address) :
@@ -36,12 +35,14 @@ def embed_policy(address) :
     """
     return f'emb{address}'
 
+
+# Create Class for cache
 class Cache() :
     def __init__(self, cache_size, admit_policy, evict_policy, embed_policy) :
         self.cache_size = cache_size
-        self.addresses = np.random.randint(1,10,(self.cache_size))
-        self.pc_addresses = np.random.randint(1,10,(self.cache_size))
-        self.embeddings = [embed_policy(x) for x in self.addresses]
+        self.addresses = np.random.randint(1,10,(self.cache_size)) # enter addresses
+        self.pc_addresses = np.random.randint(1,10,(self.cache_size)) # enter pc_address
+        self.embeddings = [embed_policy(x) for x in self.addresses] # get embeddings
         self.data = pd.DataFrame({'Address': self.addresses, 'PC-Address' : self.pc_addresses, 'Embeddings' : self.embeddings})
        
     def __str__(self) :
@@ -56,11 +57,10 @@ class Cache() :
         input : request (address)
         output: NaN , cache is modified
         """
-        if admit_policy(req) :
-            
-            idx, self.data['Address'] = self.evict()
-            self.data['Address'][idx] = req
-            self.update_embed(embed_policy)
+        if admit_policy(req) : # if allowed by admit policy
+            idx, self.data['Address'] = self.evict() # perform eviction
+            self.data['Address'][idx] = req # admit request
+            self.update_embed(idx, embed_policy) # upate embeddings for admitted element
 
     def evict(self) :
         """
@@ -69,20 +69,25 @@ class Cache() :
         idx, cache = evict_policy(self.data['Address'])
         return idx, cache
     
-    def update_embed(self, embed_policy) :
+    def update_embed(self, idx, embed_policy) :
         """
         updates embeddings of all elements in cache
         """
-        self.data['Embeddings'] = [embed_policy(x) for x in self.data['Address']]
+        self.data['Embeddings'][idx] = embed_policy(self.data['Address'][idx])
 
 
-cache = Cache(5, admit_policy, evict_policy, embed_policy)
 
-print(stream)
-print(cache)
 
-for r in stream :
-    cache.admit(r) #evicts and admits request
+if __name__ == "__main__" :
+
+    stream = np.random.randint(-20,100,10) # input srequest stream
+
+    cache = Cache(5, admit_policy, evict_policy, embed_policy) # create instance for Cache class
+
+    print(stream)
     print(cache)
 
+    for r in stream :
+        cache.admit(r) #evicts and admits request
+        print(cache)
 
