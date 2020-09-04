@@ -7,6 +7,7 @@ import codecs
 from collections import deque, defaultdict
 import os
 from glob import glob
+from pathlib import Path
 
 def get_files(p):
     
@@ -16,19 +17,21 @@ def get_files(p):
     for files in files_list:
         for file in files:
             csvs.append(file)
-    csv_files = [p+ '/' +file.split('.csv')[0] for file in csvs]
+    csv_files = [p +file.split('.csv')[0] for file in csvs]
     
     return csv_files
 
-def LRU(blocktrace, frame):
+def LRU(blocktrace,pcs, frame):
     
     cache = set()
     recency = deque()
     hit, miss = 0, 0
     miss_addresses = []
+    pc_misses = []
     
     for i in tqdm(range(len(blocktrace))):
         block = blocktrace[i]
+        pc = pcs[i]
         if block in cache:
             recency.remove(block)
             recency.append(block)
@@ -39,6 +42,7 @@ def LRU(blocktrace, frame):
             recency.append(block)
             miss += 1
             miss_addresses.append(block)
+            pc_misses.append(pc)
             
         else:
             cache.remove(recency[0])
@@ -46,6 +50,7 @@ def LRU(blocktrace, frame):
             cache.add(block)
             recency.append(block)
             miss_addresses.append(block)
+            pc_misses.append(pc)
             miss += 1
     
     hitrate = hit / (hit + miss)
@@ -54,9 +59,9 @@ def LRU(blocktrace, frame):
     print('HitRate: {}'.format(hitrate))
     print('Miss_length: {}'.format(len(miss_addresses)))
     print('---------------------------')
-    return miss_addresses
+    return miss_addresses,pc_misses
 
-def LFU(blocktrace, frame):
+def LFU(blocktrace,pcs, frame):
     
     cache = set()
     cache_frequency = defaultdict(int)
@@ -64,8 +69,9 @@ def LFU(blocktrace, frame):
     
     hit, miss = 0, 0
     miss_addresses = []
+    pc_misses = []
     
-    for block in tqdm(blocktrace):
+    for i,block in tqdm(enumerate(blocktrace)):
         frequency[block] += 1
         
         if block in cache:
@@ -76,6 +82,7 @@ def LFU(blocktrace, frame):
             cache.add(block)
             cache_frequency[block] += 1
             miss_addresses.append(block)
+            pc_misses.append(pcs[i])
             miss += 1
 
         else:
@@ -85,6 +92,7 @@ def LFU(blocktrace, frame):
             cache.add(block)
             cache_frequency[block] = frequency[block]
             miss_addresses.append(block)
+            pc_misses.append(pcs[i])
             miss += 1
     
     hitrate = hit / ( hit + miss )
@@ -93,7 +101,7 @@ def LFU(blocktrace, frame):
     print('HitRate: {}'.format(hitrate))
     print('Miss_length: {}'.format(len(miss_addresses)))
     print('---------------------------')
-    return miss_addresses
+    return miss_addresses,pc_misses
 
 
 def main(args):
@@ -103,6 +111,7 @@ def main(args):
     for f in files:
         count = 0
         addresses = []
+        pcs= []
         lru_misses = []
         lfu_misses = []
 
@@ -136,22 +145,23 @@ def main(args):
                     if count == 2:
                         print(row)
                     addresses.append(row[2])
+                    pcs.append(row[1])
         print('---------------------------')
         print('Count: {}'.format(count))
         print('---------------------------')
 
-        lru_misses = LRU(addresses,32)
-        lfu_misses = LFU(addresses,32)
+        lru_misses,pcs_lru = LRU(addresses,pcs,32)
+        lfu_misses,pcs_lfu = LFU(addresses,pcs,32)
 
-        data_lru = {'LRU Miss Address': lru_misses}
+        data_lru = {'LRU Miss PC': pcs_lru,'LRU Miss Address': lru_misses}
 
-        new_df_lru = pd.DataFrame(data_lru,columns=['LRU Miss Address'])
-        new_df_lru.to_csv(args.r+'_lru_misses.csv')
+        new_df_lru = pd.DataFrame(data_lru,columns=['LRU Miss PC','LRU Miss Address'])
+        new_df_lru.to_csv(Path(f+'.csv').resolve().parents[1].joinpath('misses').joinpath(f.split(args.r)[1] +'_lru_misses.csv'))
 
-        data_lfu = {'LFU Miss Address': lfu_misses}
+        data_lfu = {'LFU Miss PC': pcs_lfu,'LFU Miss Address': lfu_misses}
 
-        new_df_lfu = pd.DataFrame(data_lfu,columns=['LFU Miss Address'])
-        new_df_lfu.to_csv(f+'_lfu_misses.csv')
+        new_df_lfu = pd.DataFrame(data_lfu,columns=['LFU Miss PC','LFU Miss Address'])
+        new_df_lfu.to_csv(Path(f+'.csv').resolve().parents[1].joinpath('misses').joinpath(f.split(args.r)[1] +'_lfu_misses.csv'))
 
 if __name__ == '__main__':
 
