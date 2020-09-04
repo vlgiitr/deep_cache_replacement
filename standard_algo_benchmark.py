@@ -8,6 +8,9 @@ scroes_belady, mean_score_belady = benchmark.get_hit_rate_across_datasets('Belad
 scroes_lfu, mean_score_lfu = benchmark.get_hit_rate_across_datasets('LFU',50)
 scroes_fifo, mean_score_fifo = benchmark.get_hit_rate_across_datasets('FIFO',50)
 scroes_lifo, mean_score_lifo = benchmark.get_hit_rate_across_datasets('LIFO',50)
+scroes_lifo, mean_score_arc = benchmark.get_hit_rate_across_datasets('ARC',50)
+scroes_lifo, mean_score_lecar = benchmark.get_hit_rate_across_datasets('LECAR',50)
+
 
 print("Belady: ",mean_score_belady)
 
@@ -24,3 +27,9 @@ print("FIFO: ",mean_score_fifo)
 
 # print(scroes_lifo)
 print("LIFO: ",mean_score_lifo)
+
+# print(scroes_lifo)
+print("ARC: ",mean_score_arc)
+
+# print(scroes_lecar)
+print("LECAR: ",mean_score_lecar)

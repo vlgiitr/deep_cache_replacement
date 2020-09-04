@@ -1,6 +1,8 @@
 from tqdm import tqdm as tqdm 
 import numpy as np
 from collections import deque, defaultdict
+from .lecar import LeCaR
+from .arc import ARC
 import timeit
 import pandas as pd
 
@@ -16,6 +18,38 @@ def getFurthestAccessBlock(C, OPT):
             maxAccessPosition = OPT[cached_block][0]
             maxAccessBlock = cached_block
     return maxAccessBlock
+
+def Lecar(blocktrace, cache_size) :
+    hits = 0
+    requests = 0
+    lecar = LeCaR(cache_size)
+    for i in tqdm(range(len(blocktrace))) :
+        block = blocktrace[i]
+        requests += 1
+
+        miss, evicted = lecar.request(block)
+
+        if not miss :
+            hits += 1
+    misses = requests - hits
+    hitrate = round(hits / requests, 2)
+    return hitrate
+
+def Arc(blocktrace, cache_size) :
+    hits = 0
+    requests = 0
+    lecar = ARC(cache_size)
+    for i in tqdm(range(len(blocktrace))) :
+        block = blocktrace[i]
+        requests += 1
+
+        miss, evicted = lecar.request(block)
+
+        if not miss :
+            hits += 1
+    misses = requests - hits
+    hitrate = round(hits / requests, 2)
+    return hitrate
 
 def Belady(blocktrace, frame):
     OPT = defaultdict(deque)
@@ -54,7 +88,6 @@ def Belady(blocktrace, frame):
     hitrate = hit / (hit + miss)
     #print(hitrate)
     return hitrate
-
 
 
 def LRU(blocktrace, frame):

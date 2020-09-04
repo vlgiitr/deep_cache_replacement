@@ -34,6 +34,13 @@ def get_hit_rate_across_datasets(algo_name,cache_size):
         if algo_name == 'LIFO':
             scores.append(standard_algo.LIFO(trace,cache_size))
 
+        if algo_name == 'LECAR':
+            scores.append(standard_algo.Lecar(trace, cache_size))
+        
+        if algo_name == 'ARC':
+            scores.append(standard_algo.Arc(trace, cache_size))
+        
+
     return scores, np.mean(scores)
 
 def get_hit_rate_across_size(algo_name ,data_path, size_min, size_max, sample_rate , csv_name):
