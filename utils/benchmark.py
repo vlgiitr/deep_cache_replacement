@@ -7,7 +7,7 @@ from utils.standard_algo import LRU, LFU, Belady, FIFO, LIFO, Arc, Lecar
 import os
 from glob import glob
 
-
+# Custom dictionary to call functions
 class NewDict(dict) :
     def __getitem__(self, key):
         val = super().__getitem__(key)
@@ -22,7 +22,6 @@ function_dict = NewDict({"LRU" : LRU,
                          "ARC" : Arc,
                          "LECAR" : Lecar})
 
-
 def get_hit_rate_across_datasets(algo_name,cache_size):
     PATH = "data/csv_data"
     EXT = "*.csv"
@@ -34,8 +33,6 @@ def get_hit_rate_across_datasets(algo_name,cache_size):
     miss_scores  = []
     overall_scores = []
     
-
- 
     print(f'\n\n---Running {algo_name}---')
     for i, path in enumerate(all_csv_files) :
         # print("File {} / {}".format(i+1, len(all_csv_files)))
@@ -57,7 +54,6 @@ def get_hit_rate_across_datasets(algo_name,cache_size):
             miss_scores.append(function_dict[algo_name](trace, cache_size))
         else : 
             non_miss_scores.append(function_dict[algo_name](trace, cache_size))
-        
 
     miss_scores, non_miss_scores = np.mean(miss_scores), np.mean(non_miss_scores)
     overall_scores = ( miss_scores + non_miss_scores ) / 2
@@ -65,6 +61,7 @@ def get_hit_rate_across_datasets(algo_name,cache_size):
     #return scores, np.mean(scores)
     return miss_scores, non_miss_scores, overall_scores
 
+### Not currently in use ###
 # def get_hit_rate_across_size(algo_name ,data_path, size_min, size_max, sample_rate , csv_name):
 #     scores = []
 #     size_list = list(range(size_min,size_max,sample_rate))
