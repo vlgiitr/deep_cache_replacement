@@ -285,7 +285,7 @@ def main(args):
     
     encoder = ByteEncoder(vocab_sizes_address=vocab_sizes_address,vocab_sizes_pc=vocab_sizes_pc,context_size=args.context_size,
                             embedding_size=args.embed_dim,hidden_size=args.hidden_size)
-    print(summary(encoder))
+    # print(summary(encoder))
     best_loss = 1e10
     optimizer = optim.Adam(encoder.parameters(),lr=3e-3,weight_decay=1e-3)
 
@@ -296,6 +296,7 @@ def main(args):
         train(trainer=trainer,inputs=dataset[i],tkn=token,arguments=args,num=i+1)
         print('Best Loss: {}'.format(trainer.best_loss))
         print('----------------------------------------')
+
 
 
 
