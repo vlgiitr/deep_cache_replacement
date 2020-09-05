@@ -107,21 +107,28 @@ class Token:
                 self.address_ixs[i][address_bytes[i]] = len(self.address_ixs[i])      
 
 class ByteEncoder(nn.Module):
-    address_embeddings = [] # list containing the address embedding layers
-    pc_embeddings = [] # list containing the PC embedding layers
-    
-    linears_address_1 = [] # list containing the first set of address linear layers
-    linears_address_2 = [] # list containing the second set of address linear layers
+   
+    def __init__(self,vocab_sizes_address,vocab_sizes_pc,context_size,embedding_size,hidden_size):
+        super(ByteEncoder,self).__init__()
 
-    linears_pc_1 = [] # list containing the first set of PC linear layers
-    linears_pc_2 = [] # list containing the second set of PC linear layers
+        self.address_embeddings = [] # list containing the address embedding layers
+        self.pc_embeddings = [] # list containing the PC embedding layers
+        
+        self.linears_address_1 = [] # list containing the first set of address linear layers
+        self.linears_address_2 = [] # list containing the second set of address linear layers
+
+        self.linears_pc_1 = [] # list containing the first set of PC linear layers
+        self.linears_pc_2 = [] # list containing the second set of PC linear layers
 
     token = None
 
 
+<<<<<<< Updated upstream
     def __init__(self,token,vocab_sizes_address,vocab_sizes_pc,context_size,embedding_size,hidden_size):
         super(ByteEncoder,self).__init__()
         self.token = token
+=======
+>>>>>>> Stashed changes
 
         for i in range(4):
             self.address_embeddings.append(nn.Embedding(vocab_sizes_address[i],embedding_size * context_size))
