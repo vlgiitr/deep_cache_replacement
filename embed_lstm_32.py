@@ -85,6 +85,7 @@ class Token:
         pc_bytes = []
         for i in range(4):
             pc_bytes.append(pc) # calculate bytes
+
         for i in range(4):
             self.pc_sets[i].add(pc_bytes[i]) # add bytes to corresponding sets
 
@@ -100,11 +101,11 @@ class Token:
         
         for i in range(4):
             self.address_sets[i].add(address_bytes[i]) # add bytes to corresponding sets
-        
+
         # allot an index to the byte if not already done
         for i in range(4): 
             if address_bytes[i] not in self.address_ixs[i].keys():
-                self.address_ixs[i][address_bytes[i]] = len(self.address_ixs[i])      
+                self.address_ixs[i][address_bytes[i]] = len(self.address_ixs[i])  
 
 class ByteEncoder(nn.Module):
     address_embeddings = [] # list containing the address embedding layers
@@ -116,12 +117,9 @@ class ByteEncoder(nn.Module):
     linears_pc_1 = [] # list containing the first set of PC linear layers
     linears_pc_2 = [] # list containing the second set of PC linear layers
 
-    token = None
 
-
-    def __init__(self,token,vocab_sizes_address,vocab_sizes_pc,context_size,embedding_size,hidden_size):
+    def __init__(self,vocab_sizes_address,vocab_sizes_pc,context_size,embedding_size,hidden_size):
         super(ByteEncoder,self).__init__()
-        self.token = token
 
         for i in range(4):
             self.address_embeddings.append(nn.Embedding(vocab_sizes_address[i],embedding_size * context_size))
@@ -209,6 +207,7 @@ class Trainer:
     model = None
     best_loss = None
     optimizer = None
+    num = None
     def __init__(self,model,best_loss,optimizer):
         self.model = model
         self.best_loss = best_loss
@@ -250,10 +249,10 @@ def train(trainer,inputs,tkn,arguments,num):
             address_trigram = trigram[1][1]
 
             targets = []
-            for i in range(4):
+            for i in range(8):
                 targets.append(torch.tensor([token.pc_ixs[i][pc_trigram[1][8*i:8*(i+1)]]],dtype=torch.long))
             
-            for i in range(4):
+            for i in range(8):
                 targets.append(torch.tensor([token.address_ixs[i][address_trigram[1][8*i:8*(i+1)]]],dtype=torch.long))
 
             loss = w2vec_loss(log_probs,targets)
@@ -263,7 +262,7 @@ def train(trainer,inputs,tkn,arguments,num):
 
             total_loss += loss.item()
 
-        if (epoch+1)%20 == 0:
+        if (epoch+1)%2 == 0:
             print('Epoch {} with loss: {}'.format(epoch+1,total_loss))
             print('----------')
         if total_loss < trainer.best_loss:
@@ -276,8 +275,8 @@ def train(trainer,inputs,tkn,arguments,num):
 
 def get_address(index,model,outputs):
     address = ''
-    for i in range(4):
-        address += list(model.token.address_ixs.keys()[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i+4]))])
+    for i in range(8):
+        address += list(model.token.address_ixs.keys()[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i+8]))])
     return address
 
 def get_address(index,model,outputs):
@@ -285,6 +284,7 @@ def get_address(index,model,outputs):
     for i in range(4):
         pc += list(model.token.address_ixs.keys())[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i]))]
     return pc
+
 
 def main(args):
     dataset = get_data(args.path)
@@ -309,9 +309,9 @@ def main(args):
         vocab_sizes_address.append(len(token.address_sets[i]))
         vocab_sizes_pc.append(len(token.pc_sets[i]))
     
-    encoder = ByteEncoder(token=token,vocab_sizes_address=vocab_sizes_address,vocab_sizes_pc=vocab_sizes_pc,context_size=args.context_size,
+    encoder = ByteEncoder(vocab_sizes_address=vocab_sizes_address,vocab_sizes_pc=vocab_sizes_pc,context_size=args.context_size,
                             embedding_size=args.embed_dim,hidden_size=args.hidden_size)
-    # print(summary(encoder))
+    print(summary(encoder))
     best_loss = 1e10
     optimizer = optim.Adam(encoder.parameters(),lr=3e-3,weight_decay=1e-3)
 
@@ -322,7 +322,6 @@ def main(args):
         train(trainer=trainer,inputs=dataset[i],tkn=token,arguments=args,num=i+1)
         print('Best Loss: {}'.format(trainer.best_loss))
         print('----------------------------------------')
-
 
 
 

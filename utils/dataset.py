@@ -35,6 +35,7 @@ def get_complete_data_padded():
     
     return dataset
 
+
 def create_inout_sequences(input_data, labels,tw):
     inout_seq = []
     L = len(input_data)
@@ -46,3 +47,4 @@ def create_inout_sequences(input_data, labels,tw):
         x.append(train_seq)
         y.append(train_label)
     return x,y
+
