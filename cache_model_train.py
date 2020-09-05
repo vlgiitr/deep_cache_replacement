@@ -7,7 +7,11 @@ import utils.dataset as dataset
 import random
 import utils.dataset
 from embed_lstm_32 import ByteEncoder
+from embed_lstm_32 import Token
 from sklearn.neighbors import KernelDensity
+from tqdm import tqdm
+from torch.utils.data import Dataset, DataLoader
+
 
 class Decoder(nn.Module):
     def __init__(self, d_in):
@@ -71,69 +75,71 @@ class DeepCache(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        self.lstm = nn.LSTM(input_size, hidden_size)
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first = True)
         self.lstm_decoder = Decoder_lstm(self.hidden_size, self.output_size)
-        self.hidden_cell = (torch.zeros(1,1,self.hidden_size),
-                            torch.zeros(1,1,self.hidden_size))
+       
 
         self.rec_freq_decoder = Decoder(input_size)
         
         self.embed_encoder = torch.load("w2vec_checkpoints/byte_encoder_32.pt")
         self.encoder_mlp = nn.Linear(emb_size*4 , emb_size)
         self.time_distributed_encoder_mlp = TimeDistributed(self.encoder_mlp,batch_first=True)
-        self.dist_vector = torch.zeros(emb_size)
+        
 
-        self.embedding_matrix = torch.rand(4,256,20)        
 
-    def get_freq_rec(self, input):
+    def get_freq_rec(self, input, dist_vector):
         
         byte_embeddings = []
         
+        # print(len(input))
+
         for i in range(4):
-            # byte_embeddings.append(torch.matmul(input[i], self.embed_encoder.address_embeddings[i].weight))  
-            byte_embeddings.append(torch.matmul(input[i], self.embedding_matrix[i]))  
+            byte_embeddings.append(torch.matmul(input[i], self.embed_encoder.address_embeddings[i].weight))  
         
         final_embedding = torch.cat(byte_embeddings , dim=-1)
-        final_embedding = self.encoder_mlp(final_embedding)
+        final_embedding = self.encoder_mlp(final_embedding).squeeze(0)
+        
 
-        print("final_embedding_shape: ",final_embedding.shape)
-        dist_vector = self.dist_vector.expand(final_embedding.shape[0],1,-1)
-        print("dist_vector.shape:",dist_vector.shape)
+        final_embedding = final_embedding.float()
+        dist_vector = dist_vector.float()
         final_embedding = torch.cat([final_embedding , dist_vector] , dim=-1)
-        print("final_embedding_shape: ",final_embedding.shape)
         output = self.rec_freq_decoder(final_embedding)
         return output
 
     def get_distribution_vector(self, input):
-        kde = KernelDensity()
-        kde.fit(input)
-        n_samples = 200
+        # print(input.shape)
+        dist_vector = torch.zeros(input.shape[0],input.shape[2])
 
-        random_samples = kde.sample(n_samples)
+        for i in range(input.shape[0]):
+            kde = KernelDensity()
+            kde.fit(input[i].detach())
+            n_samples = 200
 
-        self.dist_vector = torch.mean(random_samples , axis = 0)
+            random_samples = kde.sample(n_samples)
+            random_samples = torch.from_numpy(random_samples.astype(float))
+            dist_vector[i] = torch.mean(random_samples , axis = 0)
+
+        return dist_vector
+
+
+
+    def forward(self, input, hidden_cell):
 
         
-
-
-
-    def forward(self, input):
-        print("input_shape :",input.shape)
-
         embeddings = self.time_distributed_encoder_mlp(input)
-        embeddings = embeddings.view(len(embeddings) ,1, -1)
-        print("embeddings_shape: ",embeddings.shape)
+        dist_vector = self.get_distribution_vector(embeddings)
 
-        lstm_out, self.hidden_cell = self.lstm(embeddings.view(len(embeddings) ,1, -1), self.hidden_cell)
-        print("self.hidden_cell: ",self.hidden_cell[0].shape)
-        # exit()
-        probs , logits = self.lstm_decoder(self.hidden_cell[0])
-        print("probs_shape: ",probs[0].shape)
 
-        freq_rec = self.get_freq_rec(probs)
-        print("freq_req: ",freq_rec.shape)
-        freq = freq_rec[:,:,0]
-        rec = freq_rec[:,:,1]
+
+        lstm_out, hidden_cell = self.lstm(embeddings, hidden_cell)
+        probs , logits = self.lstm_decoder(hidden_cell[0])
+
+
+        freq_rec = self.get_freq_rec(probs,dist_vector)
+    
+
+        freq = freq_rec[:,0]
+        rec = freq_rec[:,1]
 
         return [probs , logits , freq , rec]
 
@@ -147,31 +153,31 @@ window_size = 50
 hidden_size = 20
 n_bytes = 4
 
-embedding_matrix = torch.rand(vocab_size , emb_size)
 
-train_x_byte = torch.rand(n_files,seq_len,n_bytes,emb_size)
-train_x = train_x_byte.view(n_files,seq_len,-1)
+train_x = torch.rand(n_files,seq_len,emb_size*4).float()
 train_y = torch.randint(0,3000,(n_files,seq_len,label_size))
 
-train_seq_x = []
-train_seq_y = []
+train_seq_x = torch.zeros(n_files,seq_len-window_size, window_size, emb_size*4)
+train_seq_y = torch.zeros(n_files,seq_len-window_size, 3)
 
 def create_inout_sequences(input_data, labels,tw):
-    inout_seq = []
     L = len(input_data)
     x = torch.zeros(L-tw,tw,input_data[0].shape[-1] )
-    y = []
+    y = torch.zeros(L-tw,3)
+
     for i in range(L-tw):
-        train_seq = input_data[i:i+tw]
-        train_label = (labels[i+tw:i+tw+1 , 0] , labels[i+tw:i+tw+1 , 1] ,labels[i+tw:i+tw+1 , 2])
-        x[i] = train_seq
-        y.append(train_label)
+        x[i] = input_data[i:i+tw]
+        y[i] = labels[i+tw:i+tw+1]
+
     return x,y
 
 for i in range(n_files):
     x,y = create_inout_sequences(train_x[i] , train_y[i], window_size)
-    train_seq_x.append(x)
-    train_seq_y.append(y)
+    train_seq_x[i] = x
+    train_seq_y[i] = y
+
+train_seq_x = train_seq_x.view(n_files*(seq_len-window_size),window_size,emb_size*4)
+train_seq_y = train_seq_y.view(n_files*(seq_len-window_size),3)
 
 epochs = 100
 
@@ -184,46 +190,69 @@ alpha = 0.33
 beta = 0.33
 
 def get_bytes(x):
-    
-    binary = bin(x).replace("0b","") 
+    x = x.int()
+    binary = bin(x).replace("0b","")
+    bytes = torch.zeros(4) 
     byte_list = list(x.item().to_bytes(4,byteorder='big'))
-    byte_list = [torch.tensor(x) for x in byte_list]
-    return byte_list
+    for i in range(4):
+        bytes[i] = torch.tensor(byte_list[i], dtype = torch.long)
+    return bytes
 
 def get_pred_loss(pred, target, xe_loss):
     total_loss = 0
     
-    target_byte = get_bytes(target)
+    target_batch =  torch.zeros(target.shape[0],4, dtype = torch.long)
+    
+    for i in range(target.shape[0]):
+        target_batch[i] = get_bytes(target[i])
+
 
     for i in range(4):
-        
-        logits = pred[i].squeeze(1)
-        target = target_byte[i].unsqueeze(0)
-        total_loss+=xe_loss(logits,target)
+        # print(pred[i].shape)
+        logits = pred[i].squeeze(0)
+        logits = logits
+        total_loss+=xe_loss(logits,target_batch[:,i])
 
     return total_loss
 
-for epoch in range(epochs):
+class miss_dataset(Dataset):
+    def __init__(self, train_x , train_y):
+        self.train_x = train_x
+        self.train_y = train_y
+
+    def __len__(self):
+        return self.train_x.shape[0]
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        return [self.train_x[idx] , self.train_y[idx]]
+
+
+batch_size =256
+
+miss_dataset = miss_dataset(train_seq_x,train_seq_y)
+dataloader = DataLoader(miss_dataset, batch_size=batch_size,
+                        shuffle=True, num_workers=0,drop_last = True)
+
+
+for epoch in tqdm(range(epochs)):
    
-    for i in range(n_files):            
-        
-        inputs = train_seq_x[i]
-        labels = train_seq_y[i]
+   for i_batch, (seq,labels) in enumerate(dataloader):
 
-        for seq, labels in zip(inputs , labels):
-        
+            # print(seq.shape)
+            # print(labels.shape)
             optimizer.zero_grad()
-            model.hidden_cell = (torch.zeros(1, 1, model.hidden_size),
-                            torch.zeros(1, 1, model.hidden_size))
-            probs, logits, freq, rec = model(seq)
+            hidden_cell = (torch.zeros(1, batch_size, model.hidden_size),
+                            torch.zeros(1, batch_size, model.hidden_size))
+            probs, logits, freq, rec = model(seq,hidden_cell)
 
-            print("len(logits) : ",len(logits))
-            print("logits: ",logits[0].shape)
-            
 
-            loss_address = get_pred_loss(logits,labels[0], xe_loss)
-            freq_address = mse_loss(freq, labels[1])
-            rec_address = mse_loss(rec, labels[2])
+            loss_address = get_pred_loss(logits,labels[:,0], xe_loss)
+
+            freq_address = mse_loss(freq, labels[:,1].float())
+            rec_address = mse_loss(rec, labels[:,2].float())
 
             total_loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
 
