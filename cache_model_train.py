@@ -90,7 +90,6 @@ class DeepCache(nn.Module):
         
 
 
-<<<<<<< HEAD
     def get_freq_rec(self, input, dist_vector):
         
         byte_embeddings = []
@@ -99,16 +98,6 @@ class DeepCache(nn.Module):
 
         for i in range(4):
             byte_embeddings.append(torch.matmul(input[i], self.embed_encoder.address_embeddings[i].weight))  
-=======
-
-    def get_freq_rec(self, input):
-        
-        byte_embeddings = []
-        for i in range(4):
-            # byte_embeddings.append(torch.matmul(input[i], self.embed_encoder.address_embeddings[i].weight))  
-            byte_embeddings.append(torch.matmul(input[i], self.embedding_matrix[i]))  
-
->>>>>>> bd7aaaaab5ec919f3be9178064ad7e61d3837777
         
         final_embedding = torch.cat(byte_embeddings , dim=-1)
         final_embedding = self.encoder_mlp(final_embedding).squeeze(0)
@@ -133,11 +122,8 @@ class DeepCache(nn.Module):
             random_samples = torch.from_numpy(random_samples.astype(float))
             dist_vector[i] = torch.mean(random_samples , axis = 0)
 
-<<<<<<< HEAD
         return dist_vector
 
-=======
->>>>>>> bd7aaaaab5ec919f3be9178064ad7e61d3837777
 
 
     def forward(self, input, hidden_cell):
@@ -231,20 +217,10 @@ def get_pred_loss(pred, target, xe_loss):
 
     return total_loss
 
-<<<<<<< HEAD
 class miss_dataset(Dataset):
     def __init__(self, train_x , train_y):
         self.train_x = train_x
         self.train_y = train_y
-=======
-
-for epoch in range(epochs):
-   
-    for i in range(n_files):            
-        
-        inputs = train_seq_x[i]
-        labels = train_seq_y[i]
->>>>>>> bd7aaaaab5ec919f3be9178064ad7e61d3837777
 
     def __len__(self):
         return self.train_x.shape[0]
