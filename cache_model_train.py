@@ -129,8 +129,6 @@ class DeepCache(nn.Module):
         embeddings = self.time_distributed_encoder_mlp(input)
         dist_vector = self.get_distribution_vector(embeddings)
 
-
-
         lstm_out, hidden_cell = self.lstm(embeddings, hidden_cell)
         probs , logits = self.lstm_decoder(hidden_cell[0])
 
