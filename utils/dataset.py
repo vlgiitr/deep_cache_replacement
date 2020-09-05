@@ -35,3 +35,16 @@ def get_complete_data_padded():
     
     return dataset
 
+
+def create_inout_sequences(input_data, labels,tw):
+    inout_seq = []
+    L = len(input_data)
+    x = []
+    y = []
+    for i in range(L-tw):
+        train_seq = input_data[i:i+tw]
+        train_label = (input_data[i+tw:i+tw+1] , labels[i+tw:i+tw+1 , 1] ,labels[i+tw:i+tw+1 , 2])
+        x.append(train_seq)
+        y.append(train_label)
+    return x,y
+

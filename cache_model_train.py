@@ -13,10 +13,12 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 
+
 class Decoder(nn.Module):
     def __init__(self, d_in):
         super(Decoder,self).__init__()
-        self.linear1 = nn.Linear(40, 10)
+        self.linear1 = nn.Linear(d_in, 10)
+
         self.linear2 = nn.Linear(10, 2)
     
     def forward(self, input):
@@ -38,7 +40,8 @@ class Decoder_lstm(nn.Module):
         x3 = self.linear3(x)
         x4 = self.linear4(x)
         logits = [x1,x2,x3,x4]
-        return [ F.softmax(x/self.temperature , dim=1) for x in logits], logits
+        return [ lambda x: F.softmax(x/self.temperature , dim=1) for x in logits], logits
+
 
 
 class TimeDistributed(nn.Module):
@@ -87,6 +90,7 @@ class DeepCache(nn.Module):
         
 
 
+<<<<<<< HEAD
     def get_freq_rec(self, input, dist_vector):
         
         byte_embeddings = []
@@ -95,6 +99,16 @@ class DeepCache(nn.Module):
 
         for i in range(4):
             byte_embeddings.append(torch.matmul(input[i], self.embed_encoder.address_embeddings[i].weight))  
+=======
+
+    def get_freq_rec(self, input):
+        
+        byte_embeddings = []
+        for i in range(4):
+            # byte_embeddings.append(torch.matmul(input[i], self.embed_encoder.address_embeddings[i].weight))  
+            byte_embeddings.append(torch.matmul(input[i], self.embedding_matrix[i]))  
+
+>>>>>>> bd7aaaaab5ec919f3be9178064ad7e61d3837777
         
         final_embedding = torch.cat(byte_embeddings , dim=-1)
         final_embedding = self.encoder_mlp(final_embedding).squeeze(0)
@@ -119,8 +133,11 @@ class DeepCache(nn.Module):
             random_samples = torch.from_numpy(random_samples.astype(float))
             dist_vector[i] = torch.mean(random_samples , axis = 0)
 
+<<<<<<< HEAD
         return dist_vector
 
+=======
+>>>>>>> bd7aaaaab5ec919f3be9178064ad7e61d3837777
 
 
     def forward(self, input, hidden_cell):
@@ -138,6 +155,7 @@ class DeepCache(nn.Module):
 
         freq = freq_rec[:,0]
         rec = freq_rec[:,1]
+
 
         return [probs , logits , freq , rec]
 
@@ -213,10 +231,20 @@ def get_pred_loss(pred, target, xe_loss):
 
     return total_loss
 
+<<<<<<< HEAD
 class miss_dataset(Dataset):
     def __init__(self, train_x , train_y):
         self.train_x = train_x
         self.train_y = train_y
+=======
+
+for epoch in range(epochs):
+   
+    for i in range(n_files):            
+        
+        inputs = train_seq_x[i]
+        labels = train_seq_y[i]
+>>>>>>> bd7aaaaab5ec919f3be9178064ad7e61d3837777
 
     def __len__(self):
         return self.train_x.shape[0]

@@ -14,7 +14,7 @@ from torchsummary import summary
 
 def hex_to_bin(string):
     scale = 16
-    res = bin(int(string, scale)).split('0b')[1].zfill(64)
+    res = bin(int(string, scale)).split('0b')[1].zfill(32)
     return str(res) 
 
 def get_vocab_bytes():
@@ -73,37 +73,37 @@ class Token:
     pc_ixs = [] # dict for allotting an index to each PC
 
     def __init__(self):
-        for i in range(8):
+        for i in range(4):
             self.address_sets.append(set())
             self.pc_sets.append(set())
 
-        for i in range(8):
+        for i in range(4):
             self.address_ixs.append({})
             self.pc_ixs.append({})
 
     def pc_tokens(self,pc):
         pc_bytes = []
-        for i in range(8):
+        for i in range(4):
             pc_bytes.append(pc) # calculate bytes
 
-        for i in range(8):
+        for i in range(4):
             self.pc_sets[i].add(pc_bytes[i]) # add bytes to corresponding sets
 
         # allot an index to the byte if not already done
-        for i in range(8): 
+        for i in range(4): 
             if pc_bytes[i] not in self.pc_ixs[i].keys():
                 self.pc_ixs[i][pc_bytes[i]] = len(self.pc_ixs[i])        
 
     def address_tokens(self,address):
         address_bytes = []
-        for i in range(8):
+        for i in range(4):
             address_bytes.append(address) # calculate bytes
         
-        for i in range(8):
+        for i in range(4):
             self.address_sets[i].add(address_bytes[i]) # add bytes to corresponding sets
 
         # allot an index to the byte if not already done
-        for i in range(8): 
+        for i in range(4): 
             if address_bytes[i] not in self.address_ixs[i].keys():
                 self.address_ixs[i][address_bytes[i]] = len(self.address_ixs[i])  
 
@@ -120,15 +120,15 @@ class ByteEncoder(nn.Module):
         self.linears_pc_1 = [] # list containing the first set of PC linear layers
         self.linears_pc_2 = [] # list containing the second set of PC linear layers
 
-        for i in range(8):
+        for i in range(4):
             self.address_embeddings.append(nn.Embedding(vocab_sizes_address[i],embedding_size * context_size))
             self.pc_embeddings.append(nn.Embedding(vocab_sizes_pc[i],embedding_size * context_size))
 
-        for i in range(8):
+        for i in range(4):
             self.linears_address_1.append(nn.Linear(embedding_size * context_size,hidden_size))
             self.linears_pc_1.append(nn.Linear(embedding_size * context_size,hidden_size))
 
-        for i in range(8):
+        for i in range(4):
             self.linears_address_2.append(nn.Linear(hidden_size,vocab_sizes_address[i]))
             self.linears_pc_2.append(nn.Linear(hidden_size,vocab_sizes_pc[i]))
         
@@ -146,51 +146,51 @@ class ByteEncoder(nn.Module):
         
         # 4 inputs (4 bytes) for each address
         address_inputs = []
-        for i in range(8):
+        for i in range(4):
             # convert each byte to its index (input to the embedding)
             address_inputs.append(torch.tensor([token.address_ixs[i][ad[8*i:8*(i+1)]] for ad in inputs[1]], dtype=torch.long))
         
         # 4 inputs (4 bytes) for each PC
         pc_inputs = []
-        for i in range(8):
+        for i in range(4):
             # convert each byte to its index (input to the embedding)
             pc_inputs.append(torch.tensor([token.pc_ixs[i][pc[8*i:8*(i+1)]] for pc in inputs[0]], dtype=torch.long))
 
         # Embedding Calculation for address
         address_embeds = []
-        for i in range(8):
+        for i in range(4):
             address_embeds.append(self.address_embeddings[i](address_inputs[i]).view((1, -1)))
 
         # Embedding Calculation for PC
         pc_embeds = []
-        for i in range(8):
+        for i in range(4):
             pc_embeds.append(self.pc_embeddings[i](pc_inputs[i]).view((1, -1)))
 
         # outputs by 1st set of linear layers for address
         address_outs_1 = []
-        for i in range(8):
+        for i in range(4):
             address_outs_1.append(F.relu(self.linears_address_1[i](address_embeds[i])))
 
         # outputs by 1st set of linear layers for PC
         pc_outs_1 = []
-        for i in range(8):
+        for i in range(4):
             pc_outs_1.append(F.relu(self.linears_pc_1[i](pc_embeds[i])))
 
         # outputs by 2nd set of linear layers for address
         address_outs_2 = []
-        for i in range(8):
+        for i in range(4):
             address_outs_2.append(F.relu(self.linears_address_2[i](address_outs_1[i])))
         
         # outputs by 2nd set of linear layers for PC
         pc_outs_2 = []
-        for i in range(8):
+        for i in range(4):
             pc_outs_2.append(F.relu(self.linears_pc_2[i](pc_outs_1[i])))
 
         #Calculate log_probs
         log_probs = []
-        for i in range(8):
+        for i in range(4):
             log_probs.append(F.log_softmax(pc_outs_2[i], dim=1))
-        for i in range(8):
+        for i in range(4):
             log_probs.append(F.log_softmax(address_outs_2[i], dim=1))
 
         return log_probs
@@ -280,7 +280,7 @@ def get_address(index,model,outputs):
 
 def get_address(index,model,outputs):
     pc = ''
-    for i in range(8):
+    for i in range(4):
         pc += list(model.token.address_ixs.keys())[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i]))]
     return pc
 
@@ -304,7 +304,7 @@ def main(args):
     vocab_sizes_pc = [] # list containing the vocab sizes for PCs
     vocab_sizes_address = [] # list containing the vocab sizes for addresses
     
-    for i in range(8):
+    for i in range(4):
         vocab_sizes_address.append(len(token.address_sets[i]))
         vocab_sizes_pc.append(len(token.pc_sets[i]))
     
