@@ -108,18 +108,17 @@ class Token:
                 self.address_ixs[i][address_bytes[i]] = len(self.address_ixs[i])  
 
 class ByteEncoder(nn.Module):
-    address_embeddings = [] # list containing the address embedding layers
-    pc_embeddings = [] # list containing the PC embedding layers
-    
-    linears_address_1 = [] # list containing the first set of address linear layers
-    linears_address_2 = [] # list containing the second set of address linear layers
-
-    linears_pc_1 = [] # list containing the first set of PC linear layers
-    linears_pc_2 = [] # list containing the second set of PC linear layers
-
 
     def __init__(self,vocab_sizes_address,vocab_sizes_pc,context_size,embedding_size,hidden_size):
         super(ByteEncoder,self).__init__()
+        self.address_embeddings = [] # list containing the address embedding layers
+        self.pc_embeddings = [] # list containing the PC embedding layers
+        
+        self.linears_address_1 = [] # list containing the first set of address linear layers
+        self.linears_address_2 = [] # list containing the second set of address linear layers
+
+        self.linears_pc_1 = [] # list containing the first set of PC linear layers
+        self.linears_pc_2 = [] # list containing the second set of PC linear layers
 
         for i in range(4):
             self.address_embeddings.append(nn.Embedding(vocab_sizes_address[i],embedding_size * context_size))
@@ -311,7 +310,7 @@ def main(args):
     
     encoder = ByteEncoder(vocab_sizes_address=vocab_sizes_address,vocab_sizes_pc=vocab_sizes_pc,context_size=args.context_size,
                             embedding_size=args.embed_dim,hidden_size=args.hidden_size)
-    print(summary(encoder))
+    # print(summary(encoder))
     best_loss = 1e10
     optimizer = optim.Adam(encoder.parameters(),lr=3e-3,weight_decay=1e-3)
 
@@ -331,7 +330,7 @@ if __name__=='__main__':
                         help='path to dir containing the csv files')
     parser.add_argument('--epochs', type=int, default=10,
                         help='number of epochs')
-    parser.add_argument('--embed_dim', type=int, default=32,
+    parser.add_argument('--embed_dim', type=int, default=10,
                         help='embedding dimension')
     parser.add_argument('--context_size', type=int, default=2,
                         help='context_size')       
