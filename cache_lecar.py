@@ -1,5 +1,6 @@
-from .lib.dequedict import DequeDict
-from .lib.heapdict import HeapDict
+from utils.lib.dequedict import DequeDict
+from utils.lib.heapdict import HeapDict
+import time
 import numpy as np
 import pandas as pd
 
@@ -10,7 +11,7 @@ class LeCaR:
     def __init__(self, cache_size, cache,  **kwargs):
         # Randomness and Time
         np.random.seed(123)
-        self.time = 0
+        self.time = time.time()
         self.cache = cache
 
         # Cache
@@ -20,8 +21,8 @@ class LeCaR:
 
         # Histories
         self.history_size = cache_size
-        self.lru_hist = pd.DataFrame(columns = ['Address', 'Time'], index = np.arange(0,self.cache_size))
-        self.lfu_hist = pd.DataFrame(columns = ['Address', 'Time'], index = np.arange(0,self.cache_size))
+        self.lru_hist = pd.DataFrame({'Address': np.ones(self.cache_size), 'Time': np.zeros(self.cache_size)})
+        self.lfu_hist = pd.DataFrame({'Address': np.ones(self.cache_size), 'Time': np.zeros(self.cache_size)})
 
         # Decision Weights Initilized
         self.initial_weight = 0.5
@@ -46,7 +47,7 @@ class LeCaR:
     # Add Entry to cache with given frequency
     def addToCache(self, oblock):
         # self.cache['Address'][idx] = oblock
-        self.cache.append({'Address': oblock, 'Frequency': np.NaN, 'Recency': np.nan})
+        self. cache = self.cache.append({'Address': oblock, 'Frequency': np.random.randint(0,10), 'Recency': np.random.randint(0,10)}, ignore_index=True)
 
     
     def addToHistory(self, x, policy):
@@ -63,16 +64,18 @@ class LeCaR:
             policy_history = self.lfu_hist
         elif policy == -1:
             return
-        """
-        fix this part !!
-        add evict to self.history
-        """
+
         # Evict from history is it is full
         if len(policy_history) == self.history_size:
             idx, evicted = self.get_first(policy_history)
             # del policy_history[evicted.oblock]
-            policy_history = policy_history.drop([idx]) #drop that entry
-        policy_history.append({'Address': x, 'Time': self.time})
+            policy_history = policy_history.drop([idx]).reset_index(drop = True) #drop that entry
+        policy_history = policy_history.append({'Address': x, 'Time': time.time()}, ignore_index=True)
+
+        if policy == 0:
+            self.lru_hist = policy_history    # Initialize policy histriy to original history
+        elif policy == 1:
+            self.lfu_hist = policy_history
     
     def get_first(self, history) :
         """
@@ -80,8 +83,6 @@ class LeCaR:
         """
         idx =  history[['Time']].idxmin()[0]
         return idx, history['Address'][idx]
-
-
 
     def getLRU(self):
         """
@@ -124,6 +125,7 @@ class LeCaR:
         evicted = lru # removed address
         policy = self.getChoice()
 
+        # print('POLICY !!!! ', policy)
         # Since we're using Entry references, we use is to check
         # that the LRU and LFU Entries are the same Entry
         if lru == lfu:
@@ -133,23 +135,12 @@ class LeCaR:
         else:
             evicted = lfu
 
-        # Drop an evicited item from cache
-        idx = self.cache[self.cache['Address'] == evicted].index.values
-        self.cache = self.cache.drop([idx])
-
-        #remove from history and get eviction time
-        if policy == 0:
-            idx = self.lru_hist[self.lru_hist['Address'] == evicted].index.values  
-            self.lru_hist['Time'][idx] = self.time
-        elif policy == 1:
-            idx = self.lfu_hist[self.lfu_hist['Address'] == evicted].index.values  
-            self.lfu_hist['Time'][idx] = self.time
-        elif policy == -1:
-            return
+        # Drop the evicited item from cache
+        idx = self.cache[self.cache['Address'] == evicted].index.values[0]
+        self.cache = self.cache.drop([idx]).reset_index(drop = True)
 
         self.addToHistory(evicted, policy) # add address to history of policy
-
-        return evicted.oblock, policy
+        return evicted, policy
 
     # Adjust the weights based on the given rewards for LRU and LFU
     def adjustWeights(self, rewardLRU, rewardLFU):
@@ -177,12 +168,12 @@ class LeCaR:
 
         # if in hist --> cal reward and then remove 
         if oblock in self.lru_hist['Address']:
-            idx = self.lru_hist[self.lru_hist['Adddress'] == oblock].index.values
+            idx = self.lru_hist[self.lru_hist['Adddress'] == oblock].index.values[0]
             reward_lru = -(self.discount_rate**(self.time - self.lru_hist['Time'][idx]))
             self.lru_hist = self.lru_hist.drop([idx])
             self.adjustWeights(reward_lru, 0)
         elif oblock in self.lfu_hist:
-            idx = self.lfu_hist[self.lfu_hist['Adddress'] == oblock].index.values
+            idx = self.lfu_hist[self.lfu_hist['Adddress'] == oblock].index.values[0]
             reward_lfu = -(self.discount_rate**(self.time - self.lfu_hist['Time'][idx]))
             self.lfu_hist = self.lfu_hist.drop([idx])
             self.adjustWeights(0, reward_lfu)
@@ -192,7 +183,6 @@ class LeCaR:
             evicted, policy = self.evict()
 
         self.addToCache(oblock)
-
         return evicted
 
     # Process and access request for the given oblock    
