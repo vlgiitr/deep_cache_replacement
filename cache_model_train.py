@@ -29,11 +29,10 @@ def get_pred_loss(pred, target, xe_loss):
     target_batch =  torch.zeros(target.shape[0],4, dtype = torch.long)
     
     for i in range(target.shape[0]):
-        target_batch[i] = get_bytes(target[i])
+        target_batch[i] = get_bytes(target[i]) # convert dec to bytes ( since target is in byte (0-255))
 
 
     for i in range(4):
-        # print(pred[i].shape)
         logits = pred[i].squeeze(0)
         logits = logits
         total_loss+=xe_loss(logits,target_batch[:,i])
@@ -63,10 +62,10 @@ class Decoder_lstm(nn.Module):
         self.linear4 = nn.Linear(d_in,d_out)
         self.temperature = 0.001
     def forward(self,x):
-        x1 = self.linear1(x)
-        x2 = self.linear2(x)
-        x3 = self.linear3(x)
-        x4 = self.linear4(x)
+        x1 = self.linear1(x) #1st byte
+        x2 = self.linear2(x) #2nd byte
+        x3 = self.linear3(x) #3rd byte
+        x4 = self.linear4(x) #4th byte
         logits = [x1,x2,x3,x4]
         return [ F.softmax(x/self.temperature , dim=1) for x in logits], logits
 
@@ -126,17 +125,17 @@ class DeepCache(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first = True)
-        self.lstm_decoder = Decoder_lstm(self.hidden_size, self.output_size)
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first = True) #lstm model
+        self.lstm_decoder = Decoder_lstm(self.hidden_size, self.output_size) # decoder to get address predictions
        
 
-        self.rec_freq_decoder = Decoder((input_size//2)*3)
+        self.rec_freq_decoder = Decoder((input_size//2)*3) # decoder to get freq and rec
         
-        self.embed_encoder = torch.load("w2vec_checkpoints/byte_encoder_32.pt")
-        for param in self.embed_encoder.parameters():
+        self.embed_encoder = torch.load("w2vec_checkpoints/byte_encoder_32.pt") # byte -> embedding encoder
+        for param in self.embed_encoder.parameters(): 
              param.requires_grad = False
-        self.encoder_mlp = Encoder(emb_size)
-        self.time_distributed_encoder_mlp = TimeDistributed(self.encoder_mlp,batch_first=True)
+        self.encoder_mlp = Encoder(emb_size) # 4 byte embeddings -> address embeddings
+        self.time_distributed_encoder_mlp = TimeDistributed(self.encoder_mlp,batch_first=True) # wrapper function to make encoder time distributed
         
 
 
@@ -144,26 +143,26 @@ class DeepCache(nn.Module):
         
         byte_embeddings = []
         
-
+        # multiply predicted probs (with temperature) with embedding matrix to get embeddings in a differentiable manner
         for i in range(4):
             byte_embeddings.append(torch.matmul(x[i], self.embed_encoder.address_embeddings[i].weight))  
         
-        final_embedding = torch.cat(byte_embeddings , dim=-1)
-        final_embedding = self.encoder_mlp(final_embedding).squeeze(0)
+        final_embedding = torch.cat(byte_embeddings , dim=-1) # concatenate all bytes' embeddings
+        final_embedding = self.encoder_mlp(final_embedding).squeeze(0) # get address embedding from 4 byte embeddings
 
 
         final_embedding = final_embedding.float()
         dist_vector = dist_vector.float()
-        final_embedding = torch.cat([final_embedding , dist_vector] , dim=-1)
-        output = self.rec_freq_decoder(final_embedding)
+        final_embedding = torch.cat([final_embedding , dist_vector] , dim=-1) # concatenate address embedding with dist vector
+        output = self.rec_freq_decoder(final_embedding) # predict freq, rec using MLP
         return output
 
     def get_distribution_vector(self, input):
 
-        dist_vector = torch.zeros(input.shape[0],input.shape[2])
+        dist_vector = torch.zeros(input.shape[0],input.shape[2]) # initilise the dist vector
 
         for i in range(input.shape[0]):
-            kde = KernelDensity()
+            kde = KernelDensity()    # fit KDE
             try :
                 kde.fit(input[i].detach())
             except:
@@ -172,6 +171,8 @@ class DeepCache(nn.Module):
                 print(input[i])
                 exit()
             n_samples = 200
+            
+            # sample from distribution and take mean to get estimate of true mean ie. dist vector
 
             random_samples = kde.sample(n_samples)
             random_samples = torch.from_numpy(random_samples.astype(float))
@@ -181,21 +182,14 @@ class DeepCache(nn.Module):
 
     def get_embed_pc(self, address):
         b,s,_ = list(address.shape)
-        embeddings = torch.zeros(b*s,emb_size*4)
+        embeddings = torch.zeros(b*s,emb_size*4) # initialise the byte embeddings
 
         address =address.view(-1,(address.shape[-1]))
-        address_bytes = get_bytes_2d(address)
+        address_bytes = get_bytes_2d(address) # convert input decimal into 4 bytes
 
         for i in range(4) :
             
-            temp = self.embed_encoder.pc_embeddings[i](address_bytes[:,i])
-            if torch.isnan(temp).any():
-                print(i)
-                print(self.embed_encoder.pc_embeddings[i].weight)
-                print(temp)
-                print(address_bytes[:,i])
-                print("GOT NANS")
-                exit()
+            temp = self.embed_encoder.pc_embeddings[i](address_bytes[:,i]) # get embeddings of each byte 
             embeddings[:,i*emb_size:(i+1)*emb_size] = temp
 
         embeddings = embeddings.view(b,s,emb_size*4)
@@ -204,20 +198,13 @@ class DeepCache(nn.Module):
 
     def get_embed_addr(self, address):
         b,s,_ = list(address.shape)
-        embeddings = torch.zeros(b*s,emb_size*4)
+        embeddings = torch.zeros(b*s,emb_size*4) # initialise the byte embeddings
 
         address =address.view(-1,(address.shape[-1]))
-        address_bytes = get_bytes_2d(address)
+        address_bytes = get_bytes_2d(address)  # convert input decimal into 4 bytes
 
         for i in range(4) :
-            temp = self.embed_encoder.address_embeddings[i](address_bytes[:,i])
-            if torch.isnan(temp).any():
-                print(i)
-                print(self.embed_encoder.address_embeddings[i].weight)
-                print(temp)
-                print(address_bytes[:,i])
-                print("GOT NANS")
-                exit()
+            temp = self.embed_encoder.address_embeddings[i](address_bytes[:,i]) # get embeddings of each byte 
             embeddings[:,i*emb_size:(i+1)*emb_size] = temp
 
         embeddings = embeddings.view(b,s,emb_size*4)
@@ -226,40 +213,28 @@ class DeepCache(nn.Module):
 
     def forward(self, input, hidden_cell):
 
-        pc      = input[:,:,0:1]
-        address = input[:,:,1:2]
+        pc      = input[:,:,0:1] 
+        address = input[:,:,1:2] # Address value in decimal
         
-        pc_embed = self.get_embed_pc(pc)
+        pc_embed = self.get_embed_pc(pc) # Convert decimal address to 4 byte embeddings using pretrained embeddings
         addr_embed = self.get_embed_addr(address)
 
-        if torch.isnan(pc_embed).any():
-            print("GOT NANS")
-            exit()
 
-        if torch.isnan(addr_embed).any():
-            print("GOT NANS1")
-            exit()
-
-        embeddings_pc = self.time_distributed_encoder_mlp(pc_embed)
+        # time distributed MLP because we need to apply it on every element of the sequence
+        embeddings_pc = self.time_distributed_encoder_mlp(pc_embed) # Convert 4byte embedding to a single address embedding using an MLP
         embeddings_address = self.time_distributed_encoder_mlp(addr_embed)
 
-        if torch.isnan(embeddings_pc).any():
-            print(self.encoder_mlp.linear.weight)
-            print("GOT NANS2")
-            exit()
 
-        if torch.isnan(embeddings_address).any():
-            
-            print("GOT NANS3")
-            exit()
-
+        # concat pc and adress emeddings
         embeddings = torch.cat([embeddings_pc,embeddings_address] ,dim=-1)
+
+        # get distribution vector using KDE
         dist_vector = self.get_distribution_vector(embeddings)
 
         lstm_out, hidden_cell = self.lstm(embeddings, hidden_cell)
-        probs , logits = self.lstm_decoder(hidden_cell[0])
+        probs , logits = self.lstm_decoder(hidden_cell[0]) # get prediction logits and probs
 
-        freq_rec = self.get_freq_rec(probs,dist_vector)
+        freq_rec = self.get_freq_rec(probs,dist_vector) # get freq and rec estimat from prediced probs and distribution vector
 
         freq = freq_rec[:,0]
         rec = freq_rec[:,1]
@@ -282,15 +257,7 @@ batch_size =256
 
 model = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
 
-for i in range(4):
-    print(model.embed_encoder.address_embeddings[i].weight)
-    print(model.embed_encoder.pc_embeddings[i].weight)
-exit()
-# print()
-# for i in range(4):
-#     if torch.isnan(model.embed_encoder.address_embeddings[i].weight).any() or torch.isnan(model.embed_encoder.pc_embeddings[i].weight).any() :
-#         print("AAAAAAAAAAAA")
-#         exit()
+
 xe_loss = nn.CrossEntropyLoss()
 mse_loss = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
@@ -302,17 +269,16 @@ dataloader = get_miss_dataloader(batch_size, window_size, n_files)
 for epoch in tqdm(range(epochs)):
    
    for i_batch, (seq,labels) in enumerate(dataloader):
-            print("i_batch: ",i_batch)
             optimizer.zero_grad()
-            hidden_cell = (torch.zeros(1, batch_size, model.hidden_size),
+            hidden_cell = (torch.zeros(1, batch_size, model.hidden_size), # reinitialise hidden state for each new sample
                             torch.zeros(1, batch_size, model.hidden_size))
             probs, logits, freq, rec = model(seq,hidden_cell)
 
 
-            loss_address = get_pred_loss(logits,labels[:,0], xe_loss)
+            loss_address = get_pred_loss(logits,labels[:,0], xe_loss) # Cross entropy loss with address predictions
 
-            freq_address = mse_loss(freq, labels[:,1].float())
-            rec_address = mse_loss(rec, labels[:,2].float())
+            freq_address = mse_loss(freq, labels[:,1].float()) #MSE loss with frequency
+            rec_address = mse_loss(rec, labels[:,2].float()) #MSE loss with recency
 
             total_loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
 
