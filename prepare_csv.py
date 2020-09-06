@@ -29,17 +29,18 @@ output: A list distances with distance corresponding to each element of arr in t
     indexes = {} # dict to store all the indexes for an element
     distances = [] 
   
-    minDistance = float('inf')
+    minDistance = int(len(arr))
     for i in range(len(arr)): 
 
         if arr[i] not in indexes.keys(): 
-            mp[arr[i]] = [float('-inf'),i] # if we see the element for the first time initialize the list as -inf and current index 
+            mp[arr[i]] = [int(len(arr)),i] # if we see the element for the first time initialize the list as -inf and current index 
             indexes[arr[i]] = [i] # if we see the element for the first time initialize the list with the current index
         else: 
             indexes[arr[i]].append(i) # add the index to the corresponding list
             mp[arr[i]] = [mp[arr[i]][1],i] # update the most recent and 2nd most recent index 
             dist = i - mp[arr[i]][0] # calculate distance for the 2nd most recent index
-            distances[mp[arr[i]][0]] = dist # update the distance 
+            if dist < minDistance:
+                distances[mp[arr[i]][0]] = dist # update the distance 
         distances.append(minDistance) # add inf as the distance for the current element which will be updated later
     return distances
 
@@ -82,8 +83,8 @@ def main(args):
             inputFile=file.readlines()
         for line in tqdm(inputFile):
             item = line.split(" ")
-            if len(item) is 3:
-                page_counters.append(item[0].split(':')[0])
+            if len(item) is 4:
+                page_counters.append(item[1])
                 addresses.append(item[2])
             else:
                 print('---------------------------')

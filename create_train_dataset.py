@@ -39,7 +39,7 @@ def create_inout_sequences(input_x,freq,rec,tw):
 
 
 def get_miss_dataloader(batch_size,window_size,n_files):
-    PATH = "/home/deku/Coding/AAAI/deep_cache_replacement/data/csv_data/cse240_project_ucsd/misses"
+    PATH = "data/csv_data/cse240_project_ucsd/misses/train"
     EXT = "*.csv"
     all_csv_files = [file
                     for path, subdir, files in os.walk(PATH)

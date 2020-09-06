@@ -12,6 +12,8 @@ from sklearn.neighbors import KernelDensity
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from create_train_dataset import get_miss_dataloader
+from torchsummary import summary
+import argparse
 
 
 def get_bytes(x):
@@ -45,7 +47,6 @@ class Decoder(nn.Module):
     def __init__(self, d_in):
         super(Decoder,self).__init__()
         self.linear1 = nn.Linear(d_in, 10)
-
         self.linear2 = nn.Linear(10, 2)
     
     def forward(self, input):
@@ -60,7 +61,7 @@ class Decoder_lstm(nn.Module):
         self.linear2 = nn.Linear(d_in,d_out)
         self.linear3 = nn.Linear(d_in,d_out)
         self.linear4 = nn.Linear(d_in,d_out)
-        self.temperature = 0.001
+        self.temperature = 0.01
     def forward(self,x):
         x1 = self.linear1(x) #1st byte
         x2 = self.linear2(x) #2nd byte
@@ -78,6 +79,8 @@ class TimeDistributed(nn.Module):
         self.batch_first = batch_first
 
     def forward(self, x):
+        if torch.isnan(x).any().item():
+            print('TimeDistributed INPUT is NaN')
 
         if len(x.size()) <= 2:
             return self.module(x)
@@ -92,6 +95,8 @@ class TimeDistributed(nn.Module):
             y = y.contiguous().view(x.size(0), -1, y.size(-1))  # (samples, timesteps, output_size)
         else:
             y = y.view(-1, x.size(1), y.size(-1))  # (timesteps, samples, output_size)
+        if torch.isnan(y).any().item():
+            print('TimeDistributed OUTPUT is NaN')
 
         return y
     
@@ -101,17 +106,23 @@ def get_bytes_2d(x):
     out = torch.zeros((x.shape[0],4) , dtype =torch.long)
     for i in range(x.shape[0]):
         out[i] = get_bytes(x[i])
-
     return out
 
 class Encoder(nn.Module):
     def __init__(self,emb_size):
         super(Encoder,self).__init__()
         self.linear = nn.Linear(emb_size*4, emb_size)
+        self.btn = nn.BatchNorm1d(num_features=emb_size,momentum=0)
     
     def forward(self,x):
-        x = self.linear(x)
-        x = F.sigmoid(x)
+        if torch.isnan(x).any().item():
+            print('Encoder Input is NaN')
+        x = self.linear(torch.squeeze(x))
+        x = torch.sigmoid(self.btn(x))
+        if torch.isnan(x).any().item():
+            print(self.linear.weight)
+            print('Encoder Output is NaN')
+            exit()
         return x
 
     
@@ -136,7 +147,8 @@ class DeepCache(nn.Module):
              param.requires_grad = False
         self.encoder_mlp = Encoder(emb_size) # 4 byte embeddings -> address embeddings
         self.time_distributed_encoder_mlp = TimeDistributed(self.encoder_mlp,batch_first=True) # wrapper function to make encoder time distributed
-        
+        for p in self.encoder_mlp.parameters():
+            p.register_hook(lambda grad: torch.clamp(grad, -100, 100))
 
 
     def get_freq_rec(self, x, dist_vector):
@@ -158,6 +170,9 @@ class DeepCache(nn.Module):
         return output
 
     def get_distribution_vector(self, input):
+        if torch.isnan(input).any().item():
+            print('-----------------------------------')
+            print('get_distribution_vector INPUT is NaN')
 
         dist_vector = torch.zeros(input.shape[0],input.shape[2]) # initilise the dist vector
 
@@ -166,9 +181,8 @@ class DeepCache(nn.Module):
             try :
                 kde.fit(input[i].detach())
             except:
-                print(self.embed_encoder.address_embeddings[0].weight)
                 print("i:",i)
-                print(input[i])
+                print('-----------------------------------')
                 exit()
             n_samples = 200
             
@@ -211,81 +225,93 @@ class DeepCache(nn.Module):
 
         return embeddings
 
-    def forward(self, input, hidden_cell):
-
+    def forward(self, input, hidden_cell):  
+        if torch.isnan(input).any().item():
+            print('Forward INPUT is NaN')
         pc      = input[:,:,0:1] 
         address = input[:,:,1:2] # Address value in decimal
         
         pc_embed = self.get_embed_pc(pc) # Convert decimal address to 4 byte embeddings using pretrained embeddings
         addr_embed = self.get_embed_addr(address)
-
-
         # time distributed MLP because we need to apply it on every element of the sequence
         embeddings_pc = self.time_distributed_encoder_mlp(pc_embed) # Convert 4byte embedding to a single address embedding using an MLP
         embeddings_address = self.time_distributed_encoder_mlp(addr_embed)
-
-
+        if torch.isnan(embeddings_pc).any().item():
+            print('embeddings_pc is NaN')
+        if torch.isnan(embeddings_address).any().item():
+            print('embeddings_address is NaN')
         # concat pc and adress emeddings
         embeddings = torch.cat([embeddings_pc,embeddings_address] ,dim=-1)
-
         # get distribution vector using KDE
         dist_vector = self.get_distribution_vector(embeddings)
 
         lstm_out, hidden_cell = self.lstm(embeddings, hidden_cell)
         probs , logits = self.lstm_decoder(hidden_cell[0]) # get prediction logits and probs
 
-        freq_rec = self.get_freq_rec(probs,dist_vector) # get freq and rec estimat from prediced probs and distribution vector
+        freq_rec = self.get_freq_rec(probs,dist_vector) # get freq and rec estimate from prediced probs and distribution vector
 
         freq = freq_rec[:,0]
         rec = freq_rec[:,1]
 
         return [probs , logits , freq , rec]
 
-       
-n_files = 1
-seq_len = 200
-emb_size = 20
-label_size = 3
-vocab_size = 500
-window_size = 30
-hidden_size = 20
-n_bytes = 4
-epochs = 100
-alpha = 0.33
-beta = 0.33
-batch_size =256
+if __name__=='__main__':
+    parser = argparse.ArgumentParser(description='Deep Cache')
+    parser.add_argument('--epochs', type=int, default=10,
+                        help='number of epochs')
+    parser.add_argument('--batch_size', type=int, default=256,
+                        help='batch_size')                       
+    args = parser.parse_args()
 
-model = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
+    n_files = 1
+    seq_len = 200
+    emb_size = 40
+    label_size = 3
+    vocab_size = 500
+    window_size = 30
+    hidden_size = 40
+    n_bytes = 4
+    epochs = args.epochs
+    alpha = 0.33
+    beta = 0.33
+    batch_size = args.batch_size
 
+    print('Creating Model')
+    model = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
 
-xe_loss = nn.CrossEntropyLoss()
-mse_loss = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-dataloader = get_miss_dataloader(batch_size, window_size, n_files)
-
-
-
-
-for epoch in tqdm(range(epochs)):
-   
-   for i_batch, (seq,labels) in enumerate(dataloader):
+    xe_loss = nn.CrossEntropyLoss()
+    mse_loss = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    print('Loading Data')
+    dataloader = get_miss_dataloader(batch_size, window_size, n_files)
+    print('Num_Batches: {}'.format(len(dataloader)))
+    print('------------------------------------')
+    best_loss = 1000000
+    for epoch in range(epochs):
+        total_loss = 0
+        for (seq,labels) in tqdm(dataloader):
             optimizer.zero_grad()
             hidden_cell = (torch.zeros(1, batch_size, model.hidden_size), # reinitialise hidden state for each new sample
                             torch.zeros(1, batch_size, model.hidden_size))
-            probs, logits, freq, rec = model(seq,hidden_cell)
-
-
+            probs, logits, freq, rec = model(input = seq,hidden_cell=hidden_cell)
             loss_address = get_pred_loss(logits,labels[:,0], xe_loss) # Cross entropy loss with address predictions
-
             freq_address = mse_loss(freq, labels[:,1].float()) #MSE loss with frequency
-            rec_address = mse_loss(rec, labels[:,2].float()) #MSE loss with recency
-
-            total_loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
-
-            total_loss.backward()
+            rec_address = mse_loss(torch.mul(rec,torch.tensor(-1000,dtype = torch.long)), labels[:,2].float()) #MSE loss with recency
+            loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
+            loss.backward()
+            total_loss+=loss.item()
             optimizer.step()
 
+        if (epoch+1)%20 == 0:
+            print('Epoch {} with loss: {}'.format(epoch+1,total_loss))
+            print('-------------------------')
+            
+        if total_loss < best_loss:
+            best_loss = total_loss
+            best_epoch = epoch+1
+            torch.save(model, 'checkpoints/deep_cache.pt')
+            print('Saved at epoch {} with loss: {}'.format(epoch+1,total_loss))
+            print('---------------------')
 
 
-
-
+    print('Best Epoch: {}'.format(best_epoch))

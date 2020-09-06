@@ -248,10 +248,10 @@ def train(trainer,inputs,tkn,arguments,num):
             address_trigram = trigram[1][1]
 
             targets = []
-            for i in range(8):
+            for i in range(4):
                 targets.append(torch.tensor([token.pc_ixs[i][pc_trigram[1][8*i:8*(i+1)]]],dtype=torch.long))
             
-            for i in range(8):
+            for i in range(4):
                 targets.append(torch.tensor([token.address_ixs[i][address_trigram[1][8*i:8*(i+1)]]],dtype=torch.long))
 
             loss = w2vec_loss(log_probs,targets)
@@ -267,29 +267,29 @@ def train(trainer,inputs,tkn,arguments,num):
         if total_loss < trainer.best_loss:
             trainer.best_loss = total_loss
             best_epoch = epoch+1
-            torch.save(trainer.model, 'w2vec_checkpoints/byte_encoder_32.pt')
+            torch.save(trainer.model, 'checkpoints/byte_encoder_32.pt')
             print('Saved at epoch {} with loss: {} for dataset: {}'.format(epoch+1,total_loss,num))
             print('----------')
     print('Best Epoch: {}'.format(best_epoch))
 
 def get_address(index,model,outputs):
     address = ''
-    for i in range(8):
-        address += list(model.token.address_ixs.keys()[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i+8]))])
+    for i in range(4):
+        address += list(model.token.address_ixs[i].keys()[list(model.token.address_ixs[i].values()).index(torch.argmax(outputs[i+4]))])
     return address
 
-def get_address(index,model,outputs):
+def get_pc(index,model,outputs):
     pc = ''
     for i in range(4):
-        pc += list(model.token.address_ixs.keys())[list(model.token.address_ixs.values()).index(torch.argmax(outputs[i]))]
+        pc += list(model.token.pc_ixs[i].keys())[list(model.token.pc_ixs[i].values()).index(torch.argmax(outputs[i]))]
     return pc
 
 
 def main(args):
     dataset = get_data(args.path)
 
-    if not os.path.exists('w2vec_checkpoints'):
-        os.makedirs('w2vec_checkpoints')
+    if not os.path.exists('checkpoints'):
+        os.makedirs('checkpoints')
 
     bytes_list = get_vocab_bytes()
     token = Token()
