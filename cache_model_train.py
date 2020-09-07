@@ -286,7 +286,7 @@ if __name__=='__main__':
     dataloader = get_miss_dataloader(batch_size, window_size, n_files)
     print('Num_Batches: {}'.format(len(dataloader)))
     print('------------------------------------')
-    best_loss = 1000000
+    best_loss = 100000000000000000
     for epoch in range(epochs):
         total_loss = 0
         for (seq,labels) in tqdm(dataloader):
@@ -313,5 +313,4 @@ if __name__=='__main__':
             print('Saved at epoch {} with loss: {}'.format(epoch+1,total_loss))
             print('---------------------')
 
-
-    print('Best Epoch: {}'.format(best_epoch))
+        print('Best Epoch: {}'.format(best_epoch))

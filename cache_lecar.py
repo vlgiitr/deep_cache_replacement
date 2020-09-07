@@ -110,7 +110,7 @@ class LeCaR:
     # Evict an entry from cache
     # policy : 0 --> lru, 1 --> lfu,  -1 --> same
     def evict(self):
-        """
+        """OMKAR SUNIL BHALERAO 
         Gets lru = 0 / lfu = 1 element
         Chooses policy
         Adds to resp policy history
