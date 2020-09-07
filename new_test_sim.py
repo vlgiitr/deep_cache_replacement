@@ -38,6 +38,7 @@ def encoder(addresses,pcs,predictor):
     return freq,rec
 
 # TODO: complete this function
+# NOTE : No need of this function currently
 def eviction_policy(cache,leCaR):
     """
     evcition carried out
