@@ -8,11 +8,11 @@ class LeCaR:
     # kwargs: We're using keyword arguments so that they can be passed down as
     #         needed. Please note that cache_size is a required argument and not
     #         optional like all the kwargs are.
-    def __init__(self, cache_size, cache,  **kwargs):
+    def __init__(self, cache_size,  **kwargs):
         # Randomness and Time
         np.random.seed(123)
         self.time = time.perf_counter()*100
-        self.cache = cache
+        self.cache = pd.DataFrame()
 
         # Cache
         self.cache_size = cache_size
@@ -186,11 +186,13 @@ class LeCaR:
         return evicted
 
     # Process and access request for the given oblock    
-    def run(self, oblock) :
+    def run(self, cache_address, freq, rec, oblock) :
         """
         takes cache df as input containing rec / freq
         returns cache with evicted address
         """
+        self.cache['Address'], self.cache['Frequency'], self.cache['Recency'] = list(cache_address), list(freq), list(rec)
+
         miss = True
         evicted = None
 
@@ -201,4 +203,4 @@ class LeCaR:
         else:
             evicted = self.miss(oblock)
 
-        return miss, evicted, self.cache
+        return miss, evicted, set(self.cache['Address'])

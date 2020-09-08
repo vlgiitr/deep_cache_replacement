@@ -3,7 +3,7 @@ from collections import deque, defaultdict
 from tqdm import tqdm
 import torch
 from cache_model_train import DeepCache
-from cache_lecar import LeCaR
+from new_lecar import LeCaR
 import csv
 import glob
 import os
