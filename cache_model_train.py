@@ -135,6 +135,7 @@ class DeepCache(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
+        self.emb_size = int(input_size/2)
 
         self.lstm = nn.LSTM(input_size, hidden_size, batch_first = True) #lstm model
         self.lstm_decoder = Decoder_lstm(self.hidden_size, self.output_size) # decoder to get address predictions
@@ -145,7 +146,7 @@ class DeepCache(nn.Module):
         self.embed_encoder = torch.load("w2vec_checkpoints/byte_encoder_32.pt") # byte -> embedding encoder
         for param in self.embed_encoder.parameters(): 
              param.requires_grad = False
-        self.encoder_mlp = Encoder(emb_size) # 4 byte embeddings -> address embeddings
+        self.encoder_mlp = Encoder(int(self.input_size/2)) # 4 byte embeddings -> address embeddings
         self.time_distributed_encoder_mlp = TimeDistributed(self.encoder_mlp,batch_first=True) # wrapper function to make encoder time distributed
         for p in self.encoder_mlp.parameters():
             p.register_hook(lambda grad: torch.clamp(grad, -100, 100))
@@ -196,32 +197,31 @@ class DeepCache(nn.Module):
 
     def get_embed_pc(self, address):
         b,s,_ = list(address.shape)
-        embeddings = torch.zeros(b*s,emb_size*4) # initialise the byte embeddings
+        embeddings = torch.zeros(b*s,self.emb_size*4) # initialise the byte embeddings
 
         address =address.view(-1,(address.shape[-1]))
         address_bytes = get_bytes_2d(address) # convert input decimal into 4 bytes
-
         for i in range(4) :
             
             temp = self.embed_encoder.pc_embeddings[i](address_bytes[:,i]) # get embeddings of each byte 
-            embeddings[:,i*emb_size:(i+1)*emb_size] = temp
+            embeddings[:,i*self.emb_size:(i+1)*self.emb_size] = temp
 
-        embeddings = embeddings.view(b,s,emb_size*4)
+        embeddings = embeddings.view(b,s,self.emb_size*4)
 
         return embeddings
 
     def get_embed_addr(self, address):
         b,s,_ = list(address.shape)
-        embeddings = torch.zeros(b*s,emb_size*4) # initialise the byte embeddings
+        embeddings = torch.zeros(b*s,self.emb_size*4) # initialise the byte embeddings
 
         address =address.view(-1,(address.shape[-1]))
         address_bytes = get_bytes_2d(address)  # convert input decimal into 4 bytes
 
         for i in range(4) :
             temp = self.embed_encoder.address_embeddings[i](address_bytes[:,i]) # get embeddings of each byte 
-            embeddings[:,i*emb_size:(i+1)*emb_size] = temp
+            embeddings[:,i*self.emb_size:(i+1)*self.emb_size] = temp
 
-        embeddings = embeddings.view(b,s,emb_size*4)
+        embeddings = embeddings.view(b,s,self.emb_size*4)
 
         return embeddings
 

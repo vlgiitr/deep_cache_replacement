@@ -113,7 +113,7 @@ class ByteEncoder(nn.Module):
         super(ByteEncoder,self).__init__()
         self.address_embeddings = [] # list containing the address embedding layers
         self.pc_embeddings = [] # list containing the PC embedding layers
-        
+
         self.linears_address_1 = [] # list containing the first set of address linear layers
         self.linears_address_2 = [] # list containing the second set of address linear layers
 
