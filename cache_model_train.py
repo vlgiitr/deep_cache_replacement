@@ -112,13 +112,12 @@ class Encoder(nn.Module):
     def __init__(self,emb_size):
         super(Encoder,self).__init__()
         self.linear = nn.Linear(emb_size*4, emb_size)
-        self.btn = nn.BatchNorm1d(num_features=emb_size,momentum=0)
     
     def forward(self,x):
         if torch.isnan(x).any().item():
             print('Encoder Input is NaN')
-        x = self.linear(torch.squeeze(x))
-        x = torch.sigmoid(self.btn(x))
+        x = self.linear(x)
+        x = torch.sigmoid(x)
         if torch.isnan(x).any().item():
             print(self.linear.weight)
             print('Encoder Output is NaN')

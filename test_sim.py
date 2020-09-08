@@ -48,29 +48,24 @@ def get_embeddings(addresses,pcs,deepcache):
 
     return embeddings
 
-def get_freq_rec(self, probs, dist_vector,deepcache):
+def get_freq_rec(probs, dist_vector,deepcache):
 
     freq_rec = deepcache.get_freq_rec(probs,dist_vector) # get freq and rec estimate from prediced probs and distribution vector
     freq = freq_rec[:,0]
     rec = freq_rec[:,1]
     return freq,rec
 
-def get_dist(self, input,deepcache):
+def get_dist(input, deepcache):
     dist_vector = deepcache.get_distribution_vector(input)
     return dist_vector
 
-def get_probs(x,decoder):
-    probs,_ = decoder.lstm_decoder(x)
-    return probs
-
 def get_prefetch(misses_address,misses_pc,deepcache):
 
-    hidden_cell = (torch.zeros(1, len(misses_address), deepcache.hidden_size), # reinitialise hidden state for each new sample
-                            torch.zeros(1, len(misses_address), deepcache.hidden_size))
+    hidden_cell = (torch.zeros(1, 1, deepcache.hidden_size), # reinitialise hidden state for each new sample
+                            torch.zeros(1, 1, deepcache.hidden_size))
     embeddings = get_embeddings(misses_address,misses_pc,deepcache)
     _,hidden_cell = deepcache.lstm(embeddings, hidden_cell)
     probs,_ = deepcache.lstm_decoder(hidden_cell[0])
-    print(probs)
     return probs
 
 
@@ -88,42 +83,43 @@ def test_cache_sim(cache_size, addresses, pcs, misses_window, miss_history_lengt
     deepcache = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
     
     for i in tqdm(range(len(addresses))):
-        address = addresses[i]
-        pc = pcs[i]
-        if address in cache_address: # If address is in cache increment the num_hit
-            num_hit += 1
-            continue
-            
-        elif len(cache_address) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
-            cache_address.add(address)
-            cache_pc.add(pc)
-            num_miss += 1
-            total_miss+=1
-            miss_addresses.append(address)
-            pc_misses.append(pc)
-            if num_miss == miss_history_length: # Calculate freq and rec for every 10 misses
-                num_miss = 0
-                if len(miss_addresses) >= miss_history_length:
-                    prefetch = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
-                else:
-                    prefetch = get_prefetch(miss_addresses,pc_misses,deepcache)
-        else:
-            num_miss += 1
-            total_miss+=1
-            miss_addresses.append(address)
-            pc_misses.append(pc)
-            if num_miss == miss_history_length: # Calculate freq and rec for every 10 misses
-                num_miss = 0
-                if len(miss_addresses) >= miss_history_length:
-                    prefetch = prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
-                else:
-                    prefetch = prefetch(miss_addresses,pc_misses,deepcache)
-            e = get_embeddings(list(cache_address),list(cache_pc),deepcache)
-            dist_vector = get_dist(e,deepcache)
-            probs = get_probs(x=e,decoder=deepcache)
-            freq,rec = get_freq_rec(decoder=deepcache,dist_vector=dist_vector,x=probs)
-            cache_address.add(address)
-            cache_pc.add(pc)
+        if i <100:
+            address = addresses[i]
+            pc = pcs[i]
+            if address in cache_address: # If address is in cache increment the num_hit
+                num_hit += 1
+                continue
+                
+            elif len(cache_address) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
+                cache_address.add(address)
+                cache_pc.add(pc)
+                num_miss += 1
+                total_miss+=1
+                miss_addresses.append(address)
+                pc_misses.append(pc)
+                if num_miss == miss_history_length: # Calculate freq and rec for every 10 misses
+                    num_miss = 0
+                    if len(miss_addresses) >= miss_history_length:
+                        prefetch = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
+                    else:
+                        prefetch = get_prefetch(miss_addresses,pc_misses,deepcache)
+            else:
+                num_miss += 1
+                total_miss+=1
+                miss_addresses.append(address)
+                pc_misses.append(pc)
+                if num_miss == miss_history_length: # Calculate freq and rec for every 10 misses
+                    num_miss = 0
+                    if len(miss_addresses) >= miss_history_length:
+                        prefetch = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
+                    else:
+                        prefetch = get_prefetch(miss_addresses,pc_misses,deepcache)
+                e = get_embeddings(list(cache_address),list(cache_pc),deepcache)
+                dist_vector = get_dist(input=e,deepcache=deepcache)
+                probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
+                freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=probs)
+                cache_address.add(address)
+                cache_pc.add(pc)
     
     hitrate = num_hit / (num_hit + total_miss)
     return hitrate
