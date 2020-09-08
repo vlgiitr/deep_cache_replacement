@@ -69,7 +69,7 @@ def get_prefetch(misses_address,misses_pc,deepcache):
     return probs
 
 
-def test_cache_sim(cache_size, addresses, pcs, misses_window, miss_history_length):
+def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
 
     emb_size = 40
     hidden_size = 40
@@ -81,15 +81,19 @@ def test_cache_sim(cache_size, addresses, pcs, misses_window, miss_history_lengt
     rec = None
     freq = None
     deepcache = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
-    
-    for i in tqdm(range(len(addresses))):
-        if i <100:
+    cache_stats = {} # dict that stores the elements in cache as keys and their freq and rec as value in tuple
+    for j in tqdm(range(int(len(ads)/10000))):
+        try:
+            addresses = ads[j*10000:(j+1)*10000]
+        except:
+            addresses = ads[j*10000:]
+        for i in tqdm(range(len(addresses))):
             address = addresses[i]
             pc = pcs[i]
             if address in cache_address: # If address is in cache increment the num_hit
                 num_hit += 1
                 continue
-                
+
             elif len(cache_address) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
                 cache_address.add(address)
                 cache_pc.add(pc)
@@ -101,6 +105,7 @@ def test_cache_sim(cache_size, addresses, pcs, misses_window, miss_history_lengt
                     num_miss = 0
                     if len(miss_addresses) >= miss_history_length:
                         prefetch = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
+                        ## Add those top 5 probs thing here [we need the top 5 address]
                     else:
                         prefetch = get_prefetch(miss_addresses,pc_misses,deepcache)
             else:
@@ -118,11 +123,14 @@ def test_cache_sim(cache_size, addresses, pcs, misses_window, miss_history_lengt
                 dist_vector = get_dist(input=e,deepcache=deepcache)
                 probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
                 freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=probs)
+                ## Add the eviction func here that removes an address from a cache and updates the cache. Also pls return the value of the address removed 
                 cache_address.add(address)
                 cache_pc.add(pc)
-    
-    hitrate = num_hit / (num_hit + total_miss)
-    return hitrate
+                # del cache_stats['removed address']
+                cache_stats[address] = (freq,rec)
+
+        hitrate = num_hit / (num_hit + total_miss)
+        return hitrate
 
 
 if __name__=='__main__':
@@ -146,7 +154,7 @@ if __name__=='__main__':
     
     print('Count: {}'.format(count))
     print('Testing Started')
-    hitrate = test_cache_sim(cache_size=32,addresses=addresses,pcs=pcs,misses_window=30,miss_history_length=10)
+    hitrate = test_cache_sim(cache_size=32,ads=addresses,pcs=pcs,misses_window=30,miss_history_length=10)
     print('---------------------------')
     print('Testing Complete')
     print('HitRate: {}'.format(hitrate))
