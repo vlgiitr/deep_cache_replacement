@@ -14,7 +14,10 @@ from torch.utils.data import Dataset, DataLoader
 from create_train_dataset import get_miss_dataloader
 from torchsummary import summary
 import argparse
+import os
+from torch.utils.tensorboard import SummaryWriter
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def get_bytes(x):
     
@@ -142,7 +145,7 @@ class DeepCache(nn.Module):
 
         self.rec_freq_decoder = Decoder((input_size//2)*3) # decoder to get freq and rec
         
-        self.embed_encoder = torch.load("w2vec_checkpoints/byte_encoder_32.pt") # byte -> embedding encoder
+        self.embed_encoder = torch.load("checkpoints/byte_encoder_32.pt") # byte -> embedding encoder
         for param in self.embed_encoder.parameters(): 
              param.requires_grad = False
         self.encoder_mlp = Encoder(int(self.input_size/2)) # 4 byte embeddings -> address embeddings
@@ -262,6 +265,11 @@ if __name__=='__main__':
                         help='batch_size')                       
     args = parser.parse_args()
 
+    if not os.path.exists('checkpoints'):
+        os.makedirs('checkpoints')
+    
+    writer = SummaryWriter('runs/deepcache')
+
     n_files = 1
     seq_len = 200
     emb_size = 40
@@ -276,7 +284,7 @@ if __name__=='__main__':
     batch_size = args.batch_size
 
     print('Creating Model')
-    model = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
+    model = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256).to(device)
 
     xe_loss = nn.CrossEntropyLoss()
     mse_loss = nn.MSELoss()
@@ -285,23 +293,38 @@ if __name__=='__main__':
     dataloader = get_miss_dataloader(batch_size, window_size, n_files)
     print('Num_Batches: {}'.format(len(dataloader)))
     print('------------------------------------')
-    best_loss = 100000000000000000
+    best_loss = 1e30
     for epoch in range(epochs):
         total_loss = 0
+        i = 0
         for (seq,labels) in tqdm(dataloader):
+            i+=1
             optimizer.zero_grad()
-            hidden_cell = (torch.zeros(1, batch_size, model.hidden_size), # reinitialise hidden state for each new sample
-                            torch.zeros(1, batch_size, model.hidden_size))
-            probs, logits, freq, rec = model(input = seq,hidden_cell=hidden_cell)
-            loss_address = get_pred_loss(logits,labels[:,0], xe_loss) # Cross entropy loss with address predictions
-            freq_address = mse_loss(freq, labels[:,1].float()) #MSE loss with frequency
-            rec_address = mse_loss(torch.mul(rec,torch.tensor(-1000,dtype = torch.long)), labels[:,2].float()) #MSE loss with recency
+            hidden_cell = (torch.zeros(1, batch_size, model.hidden_size).to(device), # reinitialise hidden state for each new sample
+                            torch.zeros(1, batch_size, model.hidden_size).to(device))
+            probs, logits, freq, rec = model(input = seq.to(device),hidden_cell=hidden_cell)
+            add_target = labels[:,0].to(device)
+            loss_address = get_pred_loss(logits,add_target, xe_loss) # Cross entropy loss with address predictions
+            freq_target = labels[:,1].float().to(device)
+            freq_target = (freq_target - torch.min(freq_target))/(torch.max(freq_target)-torch.min(freq_target))           
+            rec_target = labels[:,2].float().to(device)
+            rec_target = (rec_target - torch.min(rec_target))/(torch.max(rec_target)-torch.min(rec_target)) 
+            freq_address = mse_loss(freq, freq_target) #MSE loss with frequency
+            rec_address = mse_loss(rec, rec_target) #MSE loss with recency
             loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
             loss.backward()
             total_loss+=loss.item()
+            # ...log the running loss
+            writer.add_scalar('loss/train/', loss.item(), i-1)
+            writer.add_scalar('loss/address/', loss_address, i-1)
+            writer.add_scalar('loss/freq/', freq_address, i-1)
+            writer.add_scalar('loss/rec/', rec_address, i-1)
             optimizer.step()
+            if (i+1)%1000 == 0:
+                print("Loss at step no. {}: {}".format(i+1,loss.item()))
+                print('---------------------')
 
-        if (epoch+1)%20 == 0:
+        if (epoch+1)%5 == 0:
             print('Epoch {} with loss: {}'.format(epoch+1,total_loss))
             print('-------------------------')
             

@@ -12,7 +12,7 @@ from embed_lstm_32 import ByteEncoder
 from sklearn.neighbors import KernelDensity
 import pandas as pd
 
-EMBED_ENCODER = torch.load("w2vec_checkpoints/byte_encoder_32.pt")
+EMBED_ENCODER = torch.load("checkpoints/byte_encoder_32.pt")
 EMB_SIZE = 40
 
 def create_inout_sequences(input_x,tw):
@@ -60,7 +60,6 @@ def get_dist(input, deepcache):
     return dist_vector
 
 def get_prefetch(misses_address,misses_pc,deepcache):
-
     hidden_cell = (torch.zeros(1, 1, deepcache.hidden_size), # reinitialise hidden state for each new sample
                             torch.zeros(1, 1, deepcache.hidden_size))
     embeddings = get_embeddings(misses_address,misses_pc,deepcache)

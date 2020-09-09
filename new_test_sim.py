@@ -7,14 +7,18 @@ from cache_model_train import DeepCache
 from cache_lecar import LeCaR
 import csv
 import argparse
+from embed_lstm_32 import ByteEncoder
 
 def create_input(addresses,pcs):
     """
     Function to convert the lists into an inputable form for the deepcache model
     """
-    tw = 30
-    addr = torch.tensor(addresses.astype(np.float32)).unsqueeze(1)
-    pc = torch.tensor(pcs.astype(np.float32)).unsqueeze(1)
+    df = pd.DataFrame([pcs,addresses], index=['PC', 'Address']).T
+    tw = 5
+    df['Address'] = df['Address'].apply(int, base=16)
+    df['PC'] = df['PC'].apply(int, base=16)
+    pc = torch.tensor(df['PC'].astype(np.float32)).unsqueeze(1)
+    addr = torch.tensor(df['Address'].astype(np.float32)).unsqueeze(1)
     input_x = torch.cat([pc,addr], dim = -1)
     L = input_x.shape[0]
     x = torch.zeros(L-tw,tw,2)
@@ -31,9 +35,10 @@ def encoder(addresses,pcs,predictor):
             predictor- instance of the deepcache model
     Outputs: recencies and frequencies list for the addresses  
     """
+    tw=5
     input = create_input(addresses,pcs)
-    hidden_cell = (torch.zeros(1, 1, predictor.hidden_size), # reinitialise hidden state for each new sample
-                torch.zeros(1, 1, predictor.hidden_size))
+    hidden_cell = (torch.zeros(1, tw, predictor.hidden_size), # reinitialise hidden state for each new sample
+                torch.zeros(1, tw, predictor.hidden_size))
     _,_,freq,rec = predictor(input = input,hidden_cell=hidden_cell)
     return freq,rec
 
@@ -92,7 +97,9 @@ def test_cache_sim(cache_size, addresses, pcs, misses_window, miss_history_lengt
             if num_miss == miss_history_length: # Calculate freq and rec for every 10 misses
                 num_miss = 0
                 # _,_,freq,rec = encoder(addresses=miss_addresses[-misses_window:],pcs=pc_misses[-misses_window:],predictor = decoder)
-                _,_,freq,rec = encoder(addresses=miss_addresses[-misses_window:],pcs=pc_misses[-misses_window:],predictor = decoder)
+                freq,rec = encoder(addresses=miss_addresses[-misses_window:],pcs=pc_misses[-misses_window:],predictor = decoder)
+                print(freq.shape)
+                print(rec.shape)
 
                 """
                 Update freqs /recs values for addresses in cache
@@ -106,7 +113,7 @@ def test_cache_sim(cache_size, addresses, pcs, misses_window, miss_history_lengt
             pc_misses.append(pc)
             if num_miss == miss_history_length: # Calculate freq and rec for every 10 misses
                 num_miss = 0
-                _,_,freq,rec = encoder(addresses=miss_addresses[-misses_window:],pcs=pc_misses[-misses_window:],predictor = decoder)
+                freq,rec = encoder(addresses=miss_addresses[-misses_window:],pcs=pc_misses[-misses_window:],predictor = decoder)
 
                 """
                 Update freqs /recs values for addresses in cache
@@ -145,8 +152,8 @@ if __name__=='__main__':
                 continue
             else:
                 pcs.append(row[1])
-                addresses.append(row[2]) 
-    
+                addresses.append(row[2])
+       
     print('Count: {}'.format(count))
     print('Testing Started')
     hitrate = test_cache_sim(cache_size=32,addresses=addresses,pcs=pcs,misses_window=30,miss_history_length=10)
