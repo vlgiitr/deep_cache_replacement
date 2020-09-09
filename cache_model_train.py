@@ -150,8 +150,6 @@ class DeepCache(nn.Module):
              param.requires_grad = False
         self.encoder_mlp = Encoder(int(self.input_size/2)) # 4 byte embeddings -> address embeddings
         self.time_distributed_encoder_mlp = TimeDistributed(self.encoder_mlp,batch_first=True) # wrapper function to make encoder time distributed
-        for p in self.encoder_mlp.parameters():
-            p.register_hook(lambda grad: torch.clamp(grad, -100, 100))
 
 
     def get_freq_rec(self, x, dist_vector):
@@ -170,7 +168,7 @@ class DeepCache(nn.Module):
         dist_vector = dist_vector.float()
         final_embedding = torch.cat([final_embedding , dist_vector] , dim=-1) # concatenate address embedding with dist vector
         output = self.rec_freq_decoder(final_embedding) # predict freq, rec using MLP
-        return output
+        return torch.relu(output)
 
     def get_distribution_vector(self, input):
         # if torch.isnan(input).any().item():
@@ -272,7 +270,7 @@ if __name__=='__main__':
 
     n_files = 1
     seq_len = 200
-    emb_size = 40
+    emb_size = 80
     label_size = 3
     vocab_size = 500
     window_size = 30
@@ -295,7 +293,7 @@ if __name__=='__main__':
     print('------------------------------------')
     best_loss = 1e30
     for epoch in range(epochs):
-        total_loss = 0
+        losses = []
         i = 0
         for (seq,labels) in tqdm(dataloader):
             i+=1
@@ -313,7 +311,7 @@ if __name__=='__main__':
             rec_address = mse_loss(rec, rec_target) #MSE loss with recency
             loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
             loss.backward()
-            total_loss+=loss.item()
+            losses.append(loss.item())
             # ...log the running loss
             writer.add_scalar('loss/train/', loss.item(), i-1)
             writer.add_scalar('loss/address/', loss_address, i-1)
@@ -325,14 +323,14 @@ if __name__=='__main__':
                 print('---------------------')
 
         if (epoch+1)%5 == 0:
-            print('Epoch {} with loss: {}'.format(epoch+1,total_loss))
+            print('Epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
             print('-------------------------')
             
-        if total_loss < best_loss:
-            best_loss = total_loss
+        if np.mean(losses) < best_loss:
+            best_loss = np.mean(losses)
             best_epoch = epoch+1
             torch.save(model, 'checkpoints/deep_cache.pt')
-            print('Saved at epoch {} with loss: {}'.format(epoch+1,total_loss))
+            print('Saved at epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
             print('---------------------')
 
         print('Best Epoch: {}'.format(best_epoch))

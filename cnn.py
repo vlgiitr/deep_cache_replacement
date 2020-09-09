@@ -299,7 +299,7 @@ if __name__=='__main__':
     writer = SummaryWriter('runs/deepcache')
 
     n_files = 1
-    emb_size = 40
+    emb_size = 80
     label_size = 3
     vocab_size = 500
     window_size = 30

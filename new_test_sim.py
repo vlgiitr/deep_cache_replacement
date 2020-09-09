@@ -2,7 +2,7 @@ import numpy as np
 from collections import deque, defaultdict
 from tqdm import tqdm
 import torch
-from cache_model_train import DeepCache
+from cache_model_train import DeepCache,Decoder,Decoder_lstm,Encoder,TimeDistributed
 from new_lecar import LeCaR
 import csv
 import glob
@@ -12,8 +12,6 @@ from embed_lstm_32 import ByteEncoder
 from sklearn.neighbors import KernelDensity
 import pandas as pd
 
-EMBED_ENCODER = torch.load("checkpoints/byte_encoder_32.pt")
-EMB_SIZE = 40
 
 def create_inout_sequences(input_x,tw):
     L = input_x.shape[0]
@@ -70,28 +68,28 @@ def get_prefetch(misses_address,misses_pc,deepcache):
 
 
 def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
-
-    emb_size = 40
-    hidden_size = 40
-    cache_address = []
-    # cache_frequency = []
-    # cache_recency = []
-    cache_pc = []
-
-    num_hit, num_miss,total_miss = 0, 0, 0
-    miss_addresses = []
-    pc_misses = []
-    rec = None
-    freq = None
-    deepcache = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
+    hit_rates = []
+    deepcache = torch.load("checkpoints/deep_cache.pt")
     lecar = LeCaR(cache_size)
-    cache_stats = {} # dict that stores the elements in cache as keys and their freq and rec as value in tuple
+    print('Total Batches: {}'.format(int(len(ads)/10000)))
     for j in tqdm(range(int(len(ads)/10000))):
+        emb_size = 40
+        hidden_size = 40
+        cache_address = []
+        # cache_frequency = []
+        # cache_recency = []
+        cache_pc = []
+        num_hit, num_miss,total_miss = 0, 0, 0
+        miss_addresses = []
+        pc_misses = []
+        rec = None
+        freq = None
+        cache_stats = {} # dict that stores the elements in cache as keys and their freq and rec as value in tuple
         try:
             addresses = ads[j*10000:(j+1)*10000]
         except:
             addresses = ads[j*10000:]
-        for i in tqdm(range(len(addresses))):
+        for i in range(len(addresses)):
             address = addresses[i]
             pc = pcs[i]
 
@@ -157,7 +155,11 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
                 
 
         hitrate = num_hit / (num_hit + total_miss)
-        return hitrate
+        hit_rates.append(hitrate)
+        print()
+        print('HitRate for batch {}: {}'.format(j+1,hitrate))
+        print('---------------------------')
+    return np.mean(hit_rates)
 
 
 if __name__=='__main__':
@@ -184,5 +186,5 @@ if __name__=='__main__':
     hitrate = test_cache_sim(cache_size=32,ads=addresses,pcs=pcs,misses_window=30,miss_history_length=10)
     print('---------------------------')
     print('Testing Complete')
-    print('HitRate: {}'.format(hitrate))
+    print('Average HitRate: {}'.format(hitrate))
     print('---------------------------')

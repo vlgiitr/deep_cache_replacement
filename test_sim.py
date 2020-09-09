@@ -2,7 +2,7 @@ import numpy as np
 from collections import deque, defaultdict
 from tqdm import tqdm
 import torch
-from cache_model_train import DeepCache
+from cache_model_train import DeepCache,Decoder,Decoder_lstm,Encoder,TimeDistributed
 from new_lecar import LeCaR
 import csv
 import glob
@@ -12,8 +12,6 @@ from embed_lstm_32 import ByteEncoder
 from sklearn.neighbors import KernelDensity
 import pandas as pd
 
-EMBED_ENCODER = torch.load("checkpoints/byte_encoder_32.pt")
-EMB_SIZE = 40
 
 def create_inout_sequences(input_x,tw):
     L = input_x.shape[0]
@@ -22,6 +20,7 @@ def create_inout_sequences(input_x,tw):
     return x
 
 def get_test_data_from_list(addresses,pcs,window_size):
+   
     df = pd.DataFrame(list(zip(pcs, addresses)), 
                    columns =['PC', 'Address']) 
     df['Address'] = df['Address'].apply(int, base=16)
@@ -59,6 +58,7 @@ def get_dist(input, deepcache):
     return dist_vector
 
 def get_prefetch(misses_address,misses_pc,deepcache):
+
     hidden_cell = (torch.zeros(1, 1, deepcache.hidden_size), # reinitialise hidden state for each new sample
                             torch.zeros(1, 1, deepcache.hidden_size))
     embeddings = get_embeddings(misses_address,misses_pc,deepcache)
@@ -68,33 +68,46 @@ def get_prefetch(misses_address,misses_pc,deepcache):
 
 
 def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
+    hit_rates = []
+    deepcache = torch.load("checkpoints/deep_cache.pt")
+    lecar = LeCaR(cache_size)
+    print('Total Batches: {}'.format(int(len(ads)/10000)))
 
-    emb_size = 40
-    hidden_size = 40
-    cache_address = set()
-    cache_pc = set()
-    num_hit, num_miss,total_miss = 0, 0, 0
-    miss_addresses = []
-    pc_misses = []
-    rec = None
-    freq = None
-    deepcache = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256)
-    cache_stats = {} # dict that stores the elements in cache as keys and their freq and rec as value in tuple
     for j in tqdm(range(int(len(ads)/10000))):
+        emb_size = 40
+        hidden_size = 40
+        cache_address = []
+        # cache_frequency = []
+        # cache_recency = []
+        cache_pc = []
+        num_hit, num_miss,total_miss = 0, 0, 0
+        miss_addresses = []
+        pc_misses = []
+        rec = None
+        freq = None
+        cache_stats = {} # dict that stores the elements in cache as keys and their freq and rec as value in tuple
         try:
             addresses = ads[j*10000:(j+1)*10000]
         except:
             addresses = ads[j*10000:]
-        for i in tqdm(range(len(addresses))):
+        for i in range(len(addresses)):
             address = addresses[i]
             pc = pcs[i]
-            if address in cache_address: # If address is in cache increment the num_hit
+
+            #print(f'Request: {address} \nCache {list(cache_stats.keys())} \nFreq {[x for x,y in list(cache_stats.values())]}\nRec {[y for x,y in list(cache_stats.values())]}')
+
+            if address in list(cache_stats.keys()):
+                # print('HITTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT')
+                # If address is in cache increment the num_hit
                 num_hit += 1
                 continue
 
-            elif len(cache_address) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
-                cache_address.add(address)
-                cache_pc.add(pc)
+            elif len(list(cache_stats.keys())) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
+                cache_address.append(address)
+                cache_pc.append(pc)
+                cache_stats[address] = (np.random.randint(0, 5), np.random.randint(0, 5))
+    
+                
                 num_miss += 1
                 total_miss+=1
                 miss_addresses.append(address)
@@ -122,13 +135,32 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
                 probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
                 freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=probs)
                 ## Add the eviction func here that removes an address from a cache and updates the cache. Also pls return the value of the address removed 
-                cache_address.add(address)
-                cache_pc.add(pc)
-                # del cache_stats['removed address']
-                cache_stats[address] = (freq,rec)
+                cach_freqs = [x for x,y in list(cache_stats.values())]
+                cach_reqs = [y for x,y in list(cache_stats.values())]
+                is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, address)
+
+                """ delete address from the list also"""
+                idx = cache_address.index(evicted)
+                del cache_address[idx]
+                del cache_pc[idx]
+                del cache_stats[evicted] # Delete from main cache
+                #print(f'EVICTED : {evicted}\n')
+                #print(f'After evicting : {list(cache_stats.keys())}')
+
+                """ add requested address to main cache and list """
+                cache_stats[address] = (int(freq.item()*10),int(rec.item()*10))
+                cache_address.append(address)
+                cache_pc.append(pc)
+                #print(f'After adding : {list(cache_stats.keys())}')
+                #print(cache_stats)
+                
 
         hitrate = num_hit / (num_hit + total_miss)
-        return hitrate
+        hit_rates.append(hitrate)
+        print()
+        print('HitRate for batch {}: {}'.format(j+1,hitrate))
+        print('---------------------------')
+    return np.mean(hit_rates)
 
 
 if __name__=='__main__':
@@ -155,5 +187,5 @@ if __name__=='__main__':
     hitrate = test_cache_sim(cache_size=32,ads=addresses,pcs=pcs,misses_window=30,miss_history_length=10)
     print('---------------------------')
     print('Testing Complete')
-    print('HitRate: {}'.format(hitrate))
+    print('Average HitRate: {}'.format(hitrate))
     print('---------------------------')
