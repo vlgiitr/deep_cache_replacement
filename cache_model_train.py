@@ -22,7 +22,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def get_bytes(x):
     
     x = x.long()
-    bytes = torch.zeros(4) 
+    bytes = torch.zeros(4).to(device) 
     byte_list = list(x.item().to_bytes(4,byteorder='big'))
     for i in range(4):
         bytes[i] = torch.tensor(byte_list[i], dtype = torch.long)
@@ -82,8 +82,8 @@ class TimeDistributed(nn.Module):
         self.batch_first = batch_first
 
     def forward(self, x):
-        if torch.isnan(x).any().item():
-            print('TimeDistributed INPUT is NaN')
+        # if torch.isnan(x).any().item():
+        #     print('TimeDistributed INPUT is NaN')
 
         if len(x.size()) <= 2:
             return self.module(x)
@@ -98,15 +98,15 @@ class TimeDistributed(nn.Module):
             y = y.contiguous().view(x.size(0), -1, y.size(-1))  # (samples, timesteps, output_size)
         else:
             y = y.view(-1, x.size(1), y.size(-1))  # (timesteps, samples, output_size)
-        if torch.isnan(y).any().item():
-            print('TimeDistributed OUTPUT is NaN')
+        # if torch.isnan(y).any().item():
+        #     print('TimeDistributed OUTPUT is NaN')
 
         return y
     
 
 
 def get_bytes_2d(x):
-    out = torch.zeros((x.shape[0],4) , dtype =torch.long)
+    out = torch.zeros((x.shape[0],4) , dtype =torch.long).to(device)
     for i in range(x.shape[0]):
         out[i] = get_bytes(x[i])
     return out
@@ -117,14 +117,14 @@ class Encoder(nn.Module):
         self.linear = nn.Linear(emb_size*4, emb_size)
     
     def forward(self,x):
-        if torch.isnan(x).any().item():
-            print('Encoder Input is NaN')
+        # if torch.isnan(x).any().item():
+        #     print('Encoder Input is NaN')
         x = self.linear(x)
         x = torch.sigmoid(x)
-        if torch.isnan(x).any().item():
-            print(self.linear.weight)
-            print('Encoder Output is NaN')
-            exit()
+        # if torch.isnan(x).any().item():
+        #     print(self.linear.weight)
+        #     print('Encoder Output is NaN')
+        #     exit()
         return x
 
     
@@ -173,9 +173,9 @@ class DeepCache(nn.Module):
         return output
 
     def get_distribution_vector(self, input):
-        if torch.isnan(input).any().item():
-            print('-----------------------------------')
-            print('get_distribution_vector INPUT is NaN')
+        # if torch.isnan(input).any().item():
+        #     print('-----------------------------------')
+        #     print('get_distribution_vector INPUT is NaN')
 
         dist_vector = torch.zeros(input.shape[0],input.shape[2]) # initilise the dist vector
 
@@ -199,7 +199,7 @@ class DeepCache(nn.Module):
 
     def get_embed_pc(self, address):
         b,s,_ = list(address.shape)
-        embeddings = torch.zeros(b*s,self.emb_size*4) # initialise the byte embeddings
+        embeddings = torch.zeros(b*s,self.emb_size*4).to(device) # initialise the byte embeddings
 
         address =address.view(-1,(address.shape[-1]))
         address_bytes = get_bytes_2d(address) # convert input decimal into 4 bytes
@@ -216,7 +216,7 @@ class DeepCache(nn.Module):
         b,s,_ = list(address.shape)
         embeddings = torch.zeros(b*s,self.emb_size*4) # initialise the byte embeddings
 
-        address =address.view(-1,(address.shape[-1]))
+        address =address.view(-1,(address.shape[-1])).to(device)
         address_bytes = get_bytes_2d(address)  # convert input decimal into 4 bytes
 
         for i in range(4) :
@@ -228,8 +228,8 @@ class DeepCache(nn.Module):
         return embeddings
 
     def forward(self, input, hidden_cell):  
-        if torch.isnan(input).any().item():
-            print('Forward INPUT is NaN')
+        # if torch.isnan(input).any().item():
+        #     print('Forward INPUT is NaN')
         pc      = input[:,:,0:1] 
         address = input[:,:,1:2] # Address value in decimal
         
@@ -238,10 +238,10 @@ class DeepCache(nn.Module):
         # time distributed MLP because we need to apply it on every element of the sequence
         embeddings_pc = self.time_distributed_encoder_mlp(pc_embed) # Convert 4byte embedding to a single address embedding using an MLP
         embeddings_address = self.time_distributed_encoder_mlp(addr_embed)
-        if torch.isnan(embeddings_pc).any().item():
-            print('embeddings_pc is NaN')
-        if torch.isnan(embeddings_address).any().item():
-            print('embeddings_address is NaN')
+        # if torch.isnan(embeddings_pc).any().item():
+        #     print('embeddings_pc is NaN')
+        # if torch.isnan(embeddings_address).any().item():
+        #     print('embeddings_address is NaN')
         # concat pc and adress emeddings
         embeddings = torch.cat([embeddings_pc,embeddings_address] ,dim=-1)
         # get distribution vector using KDE

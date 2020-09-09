@@ -8,6 +8,8 @@ import torch
 from embed_lstm_32 import ByteEncoder
 from embed_lstm_32 import Token
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 class miss_dataset(Dataset):
     def __init__(self, train_x , train_y):
         self.train_x = train_x
@@ -89,7 +91,7 @@ def get_miss_dataloader(batch_size,window_size,n_files):
             break
 
     
-    dataset = miss_dataset(train_x,train_y)
+    dataset = miss_dataset(train_x.to(device),train_y.to(device))
     dataloader = DataLoader(dataset, batch_size=batch_size,
                             shuffle=True, num_workers=0,drop_last = True)
 
