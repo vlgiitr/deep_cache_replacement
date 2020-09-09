@@ -3,7 +3,7 @@ from collections import deque, defaultdict
 from tqdm import tqdm
 import torch
 from cache_model_train import DeepCache
-from cache_lecar import LeCaR
+from new_lecar import LeCaR
 import csv
 import glob
 import os
@@ -22,7 +22,6 @@ def create_inout_sequences(input_x,tw):
     return x
 
 def get_test_data_from_list(addresses,pcs,window_size):
-   
     df = pd.DataFrame(list(zip(pcs, addresses)), 
                    columns =['PC', 'Address']) 
     df['Address'] = df['Address'].apply(int, base=16)

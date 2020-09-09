@@ -1,2 +1,2 @@
-temp.py
-*.pt
+__pycache__/
+utils/__pycache__/
