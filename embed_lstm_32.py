@@ -330,7 +330,7 @@ if __name__=='__main__':
                         help='path to dir containing the csv files')
     parser.add_argument('--epochs', type=int, default=10,
                         help='number of epochs')
-    parser.add_argument('--embed_dim', type=int, default=10,
+    parser.add_argument('--embed_dim', type=int, default=20,
                         help='embedding dimension')
     parser.add_argument('--context_size', type=int, default=2,
                         help='context_size')       
