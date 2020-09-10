@@ -148,7 +148,7 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
                 #print(f'After evicting : {list(cache_stats.keys())}')
 
                 """ add requested address to main cache and list """
-                cache_stats[address] = (int(freq.item()),int(rec.item()))
+                cache_stats[address] = (int(freq.item()*100),int(rec.item()*100))
                 cache_address.append(address)
                 cache_pc.append(pc)
                 #print(f'After adding : {list(cache_stats.keys())}')
