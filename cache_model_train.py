@@ -18,6 +18,7 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#device = 'cpu'
 
 def get_bytes(x):
     
@@ -281,7 +282,7 @@ if __name__=='__main__':
     batch_size = args.batch_size
 
     print('Creating Model')
-    model = torch.load("checkpoints/deep_cache_lr=1e-3.pt").to(device)
+    model = torch.load("checkpoints/deep_cache_lr.pt").to(device)
 
     xe_loss = nn.CrossEntropyLoss()
     mse_loss = nn.MSELoss()
@@ -303,7 +304,7 @@ if __name__=='__main__':
             add_target = labels[:,0].to(device)
             loss_address = get_pred_loss(logits,add_target, xe_loss) # Cross entropy loss with address predictions
             freq_target = labels[:,1].float().to(device)
-            freq_target = (freq_target - torch.min(freq_target))/(torch.max(freq_target)-torch.min(freq_target))           
+            # freq_target = (freq_target - torch.min(freq_target))/(torch.max(freq_target)-torch.min(freq_target))           
             rec_target = labels[:,2].float().to(device)
             rec_target = (rec_target - torch.min(rec_target))/(torch.max(rec_target)-torch.min(rec_target)) 
             freq_address = mse_loss(freq, freq_target) #MSE loss with frequency
@@ -324,7 +325,7 @@ if __name__=='__main__':
         if np.mean(losses) < best_loss:
             best_loss = np.mean(losses)
             best_epoch = epoch+1
-            torch.save(model, 'checkpoints/deep_cache_lr=1e-3_2.pt')
+            torch.save(model, 'checkpoints/deep_cache_no_freq_target.pt')
             print('Saved at epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
             print('---------------------')
     print('---------------------')

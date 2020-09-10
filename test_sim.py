@@ -1,5 +1,7 @@
 import numpy as np
 from collections import deque, defaultdict
+from numpy import array,argmax
+from math import log
 from tqdm import tqdm
 import torch
 from cache_model_train import DeepCache,Decoder,Decoder_lstm,Encoder,TimeDistributed
@@ -18,6 +20,35 @@ def create_inout_sequences(input_x,tw):
     x = torch.zeros(1,L,2)
     x[0] = input_x[0:]  
     return x
+
+def beam_search_decoder(data,k):
+    sequences = [[list(), 0.0]]
+    # walk over each step in sequence
+    for row in data:
+        all_candidates = list()
+        # expand each current candidate
+        for i in range(len(sequences)):
+            seq, score = sequences[i]
+            for j in range(len(row)):
+                candidate = [seq + [j], score - log(row[j])]
+                all_candidates.append(candidate)
+        # order all candidates by score
+        ordered = sorted(all_candidates, key=lambda tup:tup[1])
+        # select k best
+        sequences = ordered[:k]
+    return sequences  
+
+def get_prefetch_addresses(prefetch, k) :
+    prefetch = [x.squeeze(0).squeeze(0) for x in prefetch] #convert to (n_bytes,256) 
+    data = beam_search_decoder(prefetch, k) #return list (list(addr_bytes), scoore)
+    top_addresses_bytes = [seq[0] for seq in data] #store only addresses, remove scores
+    # convert bytes [b1,b2,b3,b4] to hex string'0x11223344'
+    top_k_addresses = []
+    for addr in top_addresses_bytes :
+        top_k_addresses.append(''.join(format(x, '02x') for x in addr))
+    top_k_addresses = ['0x'+str(s) for s in top_k_addresses]
+  
+    return top_k_addresses
 
 def get_test_data_from_list(addresses,pcs,window_size):
    
@@ -69,16 +100,16 @@ def get_prefetch(misses_address,misses_pc,deepcache):
 
 def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
     hit_rates = []
-    deepcache = torch.load("checkpoints/deep_cache.pt")
+    deepcache = torch.load("checkpoints/deep_cache_lr=1e-3_2.pt")
     lecar = LeCaR(cache_size)
     print('Total Batches: {}'.format(int(len(ads)/10000)))
+    freq_max = 0
+    rec_max = 1
 
     for j in range(int(len(ads)/10000)):
         emb_size = 40
         hidden_size = 40
         cache_address = []
-        # cache_frequency = []
-        # cache_recency = []
         cache_pc = []
         num_hit, num_miss,total_miss = 0, 0, 0
         miss_addresses = []
@@ -94,18 +125,14 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
             address = addresses[i]
             pc = pcs[i]
 
-            #print(f'Request: {address} \nCache {list(cache_stats.keys())} \nFreq {[x for x,y in list(cache_stats.values())]}\nRec {[y for x,y in list(cache_stats.values())]}')
-
             if address in list(cache_stats.keys()):
-                # print('HITTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT')
-                # If address is in cache increment the num_hit
                 num_hit += 1
                 continue
 
             elif len(list(cache_stats.keys())) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
                 cache_address.append(address)
                 cache_pc.append(pc)
-                cache_stats[address] = (np.random.randint(0, 5), np.random.randint(1000, 1100))
+                cache_stats[address] = (np.random.randint(0, 5), np.random.randint(1000, 1005))
     
                 
                 num_miss += 1
@@ -119,21 +146,97 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
                         ## Add those top 5 probs thing here [we need the top 5 address]
                     else:
                         prefetch = get_prefetch(miss_addresses,pc_misses,deepcache)
+
+                    prefetch_addresses = get_prefetch_addresses(prefetch, 5)
+                    
+                    for pref in prefetch_addresses :
+                        if len(list(cache_stats.keys())) < cache_size:
+                            cache_address.append(pref)
+                            cache_pc.append(pref)
+                            cache_stats[pref] = (np.random.randint(0, 5), np.random.randint(1000, 1005))
+                        else :
+                            e = get_embeddings(list(cache_address),list(cache_pc),deepcache)
+                            dist_vector = get_dist(input=e,deepcache=deepcache)
+                            probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
+                            freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=probs)
+                            if freq.item() > freq_max:
+                                freq_max = freq.item()
+                            if rec.item() > rec_max:
+                                rec_max = rec.item()
+                            cach_freqs = [x for x,y in list(cache_stats.values())]
+                            cach_reqs = [y for x,y in list(cache_stats.values())]
+                            is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
+
+                            """ delete address from the list also"""
+                            idx = cache_address.index(evicted)
+                            del cache_address[idx]
+                            del cache_pc[idx]
+                            del cache_stats[evicted] # Delete from main cache
+                           
+
+                            """ add requested address to main cache and list """
+                            cache_stats[pref] = (int(freq.item()*1000),int(rec.item()*10000))
+                            cache_address.append(pref)
+                            cache_pc.append(pref)
             else:
                 num_miss += 1
                 total_miss+=1
                 miss_addresses.append(address)
                 pc_misses.append(pc)
+                done_prefetch = False
                 if num_miss == miss_history_length: # Calculate freq and rec for every 10 misses
+                    done_prefetch = True
                     num_miss = 0
                     if len(miss_addresses) >= miss_history_length:
                         prefetch = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
                     else:
                         prefetch = get_prefetch(miss_addresses,pc_misses,deepcache)
+                    
+                    prefetch_addresses = get_prefetch_addresses(prefetch, 5)
+                    
+
+                    for pref in prefetch_addresses :
+                        if len(list(cache_stats.keys())) < cache_size:
+                            cache_address.append(pref)
+                            cache_pc.append(pref)
+                            cache_stats[pref] = (np.random.randint(0, 5), np.random.randint(0, 5))
+                        else :
+                            e = get_embeddings(list(cache_address),list(cache_pc),deepcache)
+                            dist_vector = get_dist(input=e,deepcache=deepcache)
+                            probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
+                            freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=probs)
+                            if freq.item() > freq_max:
+                                freq_max = freq.item()
+                            if rec.item() > rec_max:
+                                rec_max = rec.item()
+                            cach_freqs = [x for x,y in list(cache_stats.values())]
+                            cach_reqs = [y for x,y in list(cache_stats.values())]
+                            is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
+
+                            """ delete address from the list also"""
+                            idx = cache_address.index(evicted)
+                            del cache_address[idx]
+                            del cache_pc[idx]
+                            del cache_stats[evicted] # Delete from main cache
+                           
+
+                            """ add requested address to main cache and list """
+                            cache_stats[pref] = (int(freq.item()*1000),int(rec.item()*10000))
+                            cache_address.append(pref)
+                            cache_pc.append(pref)
+                        
+                        
+
+                if done_prefetch :
+                    continue   
                 e = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                 dist_vector = get_dist(input=e,deepcache=deepcache)
                 probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
                 freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=probs)
+                if freq.item() > freq_max:
+                    freq_max = freq.item()
+                if rec.item() > rec_max:
+                    rec_max = rec.item()
                 ## Add the eviction func here that removes an address from a cache and updates the cache. Also pls return the value of the address removed 
                 cach_freqs = [x for x,y in list(cache_stats.values())]
                 cach_reqs = [y for x,y in list(cache_stats.values())]
@@ -144,23 +247,21 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
                 del cache_address[idx]
                 del cache_pc[idx]
                 del cache_stats[evicted] # Delete from main cache
-                #print(f'EVICTED : {evicted}\n')
-                #print(f'After evicting : {list(cache_stats.keys())}')
 
                 """ add requested address to main cache and list """
-                cache_stats[address] = (int(freq.item()*100),int(rec.item()*100))
+                cache_stats[address] = (int(freq.item()*1000),int(rec.item()*10000))
                 cache_address.append(address)
                 cache_pc.append(pc)
-                #print(f'After adding : {list(cache_stats.keys())}')
-                #print(cache_stats)
                 
 
         hitrate = num_hit / (num_hit + total_miss)
         hit_rates.append(hitrate)
         print()
         print('HitRate for batch {}: {}'.format(j+1,hitrate))
+        print('Freq_max: {}'.format(freq_max))
+        print('Rec max: {}'.format(rec_max))
         print('---------------------------')
-    return np.mean(hit_rates)
+    return np.mean(hit_rates),freq_max,rec_max
 
 
 if __name__=='__main__':
@@ -184,8 +285,10 @@ if __name__=='__main__':
     
     print('Count: {}'.format(count))
     print('Testing Started')
-    hitrate = test_cache_sim(cache_size=32,ads=addresses,pcs=pcs,misses_window=30,miss_history_length=10)
+    hitrate,f,r = test_cache_sim(cache_size=32,ads=addresses,pcs=pcs,misses_window=30,miss_history_length=10)
     print('---------------------------')
     print('Testing Complete')
+    print('Freq_max: {}'.format(f))
+    print('Rec max: {}'.format(r))
     print('Average HitRate: {}'.format(hitrate))
     print('---------------------------')
