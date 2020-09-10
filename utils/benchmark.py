@@ -39,15 +39,12 @@ def get_hit_rate_across_datasets(algo_name,cache_size):
         df = pd.read_csv(path)
         print(path)
 
-        if all(x in path for x in ['misses', 'lru']) :
-                trace = df['LRU Miss Address'].tolist()
+        trace = df['Address'].tolist()
+
+        if all(x in path for x in ['misses']) :
                 mode = 'misses'
 
-        elif all(x in path for x in ['misses', 'lfu']) :
-                trace = df['LFU Miss Address'].tolist()
-                mode = 'misses'
         else : 
-            trace = df['Address'].tolist()
             mode = 'normal'
 
         if  mode == 'misses':

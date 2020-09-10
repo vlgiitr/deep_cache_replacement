@@ -18,6 +18,7 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#device = 'cpu'
 
 def get_bytes(x):
     

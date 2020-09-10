@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import utils.standard_algo as standard_algo
+import utils.new_standard_algo as standard_algo
 import utils.benchmark as benchmark
 
 scores = [benchmark.get_hit_rate_across_datasets('LRU',50),
