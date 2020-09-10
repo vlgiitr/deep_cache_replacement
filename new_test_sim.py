@@ -72,7 +72,7 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
     deepcache = torch.load("checkpoints/deep_cache.pt")
     lecar = LeCaR(cache_size)
     print('Total Batches: {}'.format(int(len(ads)/10000)))
-    for j in tqdm(range(int(len(ads)/10000))):
+    for j in range(int(len(ads)/10000)):
         emb_size = 40
         hidden_size = 40
         cache_address = []
@@ -89,7 +89,7 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
             addresses = ads[j*10000:(j+1)*10000]
         except:
             addresses = ads[j*10000:]
-        for i in range(len(addresses)):
+        for i in tqdm(range(len(addresses))):
             address = addresses[i]
             pc = pcs[i]
 

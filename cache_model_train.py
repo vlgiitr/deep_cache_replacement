@@ -282,11 +282,11 @@ if __name__=='__main__':
     batch_size = args.batch_size
 
     print('Creating Model')
-    model = DeepCache(input_size=2*emb_size, hidden_size=hidden_size, output_size=256).to(device)
+    model = torch.load("checkpoints/deep_cache.pt").to(device)
 
     xe_loss = nn.CrossEntropyLoss()
     mse_loss = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     print('Loading Data')
     dataloader = get_miss_dataloader(batch_size, window_size, n_files)
     print('Num_Batches: {}'.format(len(dataloader)))
@@ -313,24 +313,21 @@ if __name__=='__main__':
             loss.backward()
             losses.append(loss.item())
             # ...log the running loss
-            writer.add_scalar('loss/train/', loss.item(), i-1)
-            writer.add_scalar('loss/address/', loss_address, i-1)
-            writer.add_scalar('loss/freq/', freq_address, i-1)
-            writer.add_scalar('loss/rec/', rec_address, i-1)
+            writer.add_scalar('loss/train/', loss.item(), epoch*len(dataloader) + i-1)
+            writer.add_scalar('loss/address/', loss_address, epoch*len(dataloader) + i-1)
+            writer.add_scalar('loss/freq/', freq_address, epoch*len(dataloader) + i-1)
+            writer.add_scalar('loss/rec/', rec_address, epoch*len(dataloader) + i-1)
             optimizer.step()
-            if (i+1)%1000 == 0:
-                print("Loss at step no. {}: {}".format(i+1,loss.item()))
-                print('---------------------')
 
-        if (epoch+1)%5 == 0:
-            print('Epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
-            print('-------------------------')
+        print('Epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
+        print('-------------------------')
             
         if np.mean(losses) < best_loss:
             best_loss = np.mean(losses)
             best_epoch = epoch+1
-            torch.save(model, 'checkpoints/deep_cache.pt')
+            torch.save(model, 'checkpoints/deep_cache_lr=1e-3.pt')
             print('Saved at epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
             print('---------------------')
-
-        print('Best Epoch: {}'.format(best_epoch))
+    print('---------------------')
+    print('Best Epoch: {}'.format(best_epoch))
+    print('---------------------')

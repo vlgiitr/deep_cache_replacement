@@ -73,7 +73,7 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
     lecar = LeCaR(cache_size)
     print('Total Batches: {}'.format(int(len(ads)/10000)))
 
-    for j in tqdm(range(int(len(ads)/10000))):
+    for j in range(int(len(ads)/10000)):
         emb_size = 40
         hidden_size = 40
         cache_address = []
@@ -90,7 +90,7 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
             addresses = ads[j*10000:(j+1)*10000]
         except:
             addresses = ads[j*10000:]
-        for i in range(len(addresses)):
+        for i in tqdm(range(len(addresses))):
             address = addresses[i]
             pc = pcs[i]
 
@@ -105,7 +105,7 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
             elif len(list(cache_stats.keys())) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
                 cache_address.append(address)
                 cache_pc.append(pc)
-                cache_stats[address] = (np.random.randint(0, 5), np.random.randint(0, 5))
+                cache_stats[address] = (np.random.randint(0, 5), np.random.randint(1000, 1100))
     
                 
                 num_miss += 1
@@ -148,7 +148,7 @@ def test_cache_sim(cache_size, ads, pcs, misses_window, miss_history_length):
                 #print(f'After evicting : {list(cache_stats.keys())}')
 
                 """ add requested address to main cache and list """
-                cache_stats[address] = (int(freq.item()*10),int(rec.item()*10))
+                cache_stats[address] = (int(freq.item()),int(rec.item()))
                 cache_address.append(address)
                 cache_pc.append(pc)
                 #print(f'After adding : {list(cache_stats.keys())}')
