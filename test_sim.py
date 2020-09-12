@@ -121,12 +121,12 @@ def get_prefetch(misses_address,misses_pc,deepcache):
     embeddings = get_embeddings(misses_address,misses_pc,deepcache)
     _,hidden_cell = deepcache.lstm(embeddings, hidden_cell)
     probs,_ = deepcache.lstm_decoder(hidden_cell[0])
-    return probs
+    return get_one_hot(probs)
 
 
 def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
     hit_rates = []
-    deepcache = torch.load("checkpoints/deep_cache_testgen_sigmoid_4.pt")
+    deepcache = torch.load("checkpoints/deep_cache_testgen.pt")
     lecar = LeCaR(cache_size)
     print('Total Batches: {}'.format(int(len(ads)/10000)))
 
@@ -165,10 +165,10 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                 miss_addresses.append(address)
                 pc_misses.append(pc)
                 e = get_ad_embeddings([address],[pc],deepcache)
-                e_1 = get_embeddings([address],[pc],deepcache)
+                e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                 dist_vector = get_dist(input=e_1,deepcache=deepcache)
                 freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
-                cache_stats[address] = (int(freq.item()*1000),int(rec.item()*1000))
+                cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000))
                 if freq.item() > freq_max:
                     freq_max = freq.item()
                 elif freq.item() < freq_min:
@@ -196,7 +196,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                             cache_address.append(pref)
                             cache_pc.append(pref)
                             e = get_ad_embeddings([address],[pc],deepcache)
-                            e_1 = get_embeddings([address],[pc],deepcache)
+                            e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                             dist_vector = get_dist(input=e_1,deepcache=deepcache)
                             freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
                             if freq.item() > freq_max:
@@ -208,10 +208,10 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                             elif rec.item() < rec_min:
                                 rec_min = rec.item()
                         else :
-                            e = get_embeddings(list(cache_address),list(cache_pc),deepcache)
-                            dist_vector = get_dist(input=e,deepcache=deepcache)
-                            probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
-                            freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=get_one_hot(probs))
+                            e = get_ad_embeddings([pref],[pc],deepcache)
+                            e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
+                            dist_vector = get_dist(input=e_1,deepcache=deepcache)
+                            freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
                             if freq.item() > freq_max:
                                 freq_max = freq.item()
                             elif freq.item() < freq_min:
@@ -232,7 +232,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                            
 
                             """ add requested address to main cache and list """
-                            cache_stats[pref] = (int(freq.item()*1000),int(rec.item()*1000))
+                            cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000))
                             cache_address.append(pref)
                             cache_pc.append(pref)
                             print("Exec")
@@ -256,10 +256,10 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                         if pref in list(cache_stats.keys()):
                             continue
                         else :
-                            e = get_embeddings(list(cache_address),list(cache_pc),deepcache)
-                            dist_vector = get_dist(input=e,deepcache=deepcache)
-                            probs = get_prefetch(miss_addresses[-misses_window:],pc_misses[-misses_window:],deepcache)
-                            freq,rec = get_freq_rec(deepcache=deepcache,dist_vector=dist_vector,probs=get_one_hot(probs))
+                            e = get_ad_embeddings([pref],[pc],deepcache)
+                            e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
+                            dist_vector = get_dist(input=e_1,deepcache=deepcache)
+                            freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
                             if freq.item() > freq_max:
                                 freq_max = freq.item()
                             elif freq.item() < freq_min:
@@ -280,7 +280,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                             
 
                             """ add requested address to main cache and list """
-                            cache_stats[pref] = (int(freq.item()*1000),int(rec.item()*1000))
+                            cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000))
                             cache_address.append(pref)
                             cache_pc.append(pref)
                                      
@@ -288,7 +288,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                 if done_prefetch :
                     continue   
                 e = get_ad_embeddings([address],[pc],deepcache)
-                e_1 = get_embeddings([address],[pc],deepcache)
+                e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                 dist_vector = get_dist(input=e_1,deepcache=deepcache)
                 freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
                 if freq.item() > freq_max:
@@ -311,7 +311,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                 del cache_stats[evicted] # Delete from main cache
 
                 """ add requested address to main cache and list """
-                cache_stats[address] = (int(freq.item()*1000),int(rec.item()*1000))
+                cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000))
                 cache_address.append(address)
                 cache_pc.append(pc)
                 
@@ -348,7 +348,7 @@ if __name__=='__main__':
     
     print('Count: {}'.format(count))
     print('Testing Started')
-    hitrate,f,r = test_cache_sim(cache_size=32,ads=addresses,ps=pcs,misses_window=50,miss_history_length=10)
+    hitrate,f,r = test_cache_sim(cache_size=32,ads=addresses,ps=pcs,misses_window=30,miss_history_length=10)
     print('---------------------------')
     print('Testing Complete')
     print('Freq_max: {}'.format(f))
