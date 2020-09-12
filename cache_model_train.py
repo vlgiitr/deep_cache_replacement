@@ -18,7 +18,6 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#device = 'cpu'
 
 def get_bytes(x):
     
@@ -33,7 +32,6 @@ def get_pred_loss(pred, target, xe_loss):
     total_loss = 0
     
     target_batch =  torch.zeros(target.shape[0],4, dtype = torch.long)
-    
     for i in range(target.shape[0]):
         target_batch[i] = get_bytes(target[i]) # convert dec to bytes ( since target is in byte (0-255))
 
@@ -42,7 +40,6 @@ def get_pred_loss(pred, target, xe_loss):
         logits = pred[i].squeeze(0)
         logits = logits
         total_loss+=xe_loss(logits,target_batch[:,i])
-
     return total_loss
 
 
@@ -65,14 +62,14 @@ class Decoder_lstm(nn.Module):
         self.linear2 = nn.Linear(d_in,d_out)
         self.linear3 = nn.Linear(d_in,d_out)
         self.linear4 = nn.Linear(d_in,d_out)
-        self.temperature = 0.01
+        self.temperature = 0.001
     def forward(self,x):
         x1 = self.linear1(x) #1st byte
         x2 = self.linear2(x) #2nd byte
         x3 = self.linear3(x) #3rd byte
         x4 = self.linear4(x) #4th byte
         logits = [x1,x2,x3,x4]
-        return [ F.softmax(x/self.temperature , dim=1) for x in logits], logits
+        return [ torch.softmax(x/self.temperature , dim=2) for x in logits], logits
 
 
 
@@ -169,7 +166,7 @@ class DeepCache(nn.Module):
         dist_vector = dist_vector.float()
         final_embedding = torch.cat([final_embedding , dist_vector] , dim=-1) # concatenate address embedding with dist vector
         output = self.rec_freq_decoder(final_embedding) # predict freq, rec using MLP
-        return torch.relu(output)
+        return torch.sigmoid(output)
 
     def get_distribution_vector(self, input):
         # if torch.isnan(input).any().item():
@@ -258,7 +255,7 @@ class DeepCache(nn.Module):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Deep Cache')
-    parser.add_argument('--epochs', type=int, default=10,
+    parser.add_argument('--epochs', type=int, default=2,
                         help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch_size')                       
@@ -282,7 +279,9 @@ if __name__=='__main__':
     batch_size = args.batch_size
 
     print('Creating Model')
-    model = torch.load("checkpoints/deep_cache_lr.pt").to(device)
+    # model = DeepCache(input_size=2*emb_size,hidden_size=hidden_size,output_size=256)
+    model = torch.load('checkpoints/deep_cache_testgen_sigmoid_3.pt')
+    model.to(device)
 
     xe_loss = nn.CrossEntropyLoss()
     mse_loss = nn.MSELoss()
@@ -301,12 +300,14 @@ if __name__=='__main__':
             hidden_cell = (torch.zeros(1, batch_size, model.hidden_size).to(device), # reinitialise hidden state for each new sample
                             torch.zeros(1, batch_size, model.hidden_size).to(device))
             probs, logits, freq, rec = model(input = seq.to(device),hidden_cell=hidden_cell)
+            # print('Freq: {}'.format(freq))
+            # print('Rec: {}'.format(rec))
             add_target = labels[:,0].to(device)
             loss_address = get_pred_loss(logits,add_target, xe_loss) # Cross entropy loss with address predictions
             freq_target = labels[:,1].float().to(device)
-            # freq_target = (freq_target - torch.min(freq_target))/(torch.max(freq_target)-torch.min(freq_target))           
+            freq_target = (freq_target - torch.min(freq_target))/(torch.max(freq_target)-torch.min(freq_target))           
             rec_target = labels[:,2].float().to(device)
-            rec_target = (rec_target - torch.min(rec_target))/(torch.max(rec_target)-torch.min(rec_target)) 
+            rec_target = (rec_target - torch.min(rec_target))/(torch.max(rec_target)-torch.min(rec_target))
             freq_address = mse_loss(freq, freq_target) #MSE loss with frequency
             rec_address = mse_loss(rec, rec_target) #MSE loss with recency
             loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
@@ -325,7 +326,7 @@ if __name__=='__main__':
         if np.mean(losses) < best_loss:
             best_loss = np.mean(losses)
             best_epoch = epoch+1
-            torch.save(model, 'checkpoints/deep_cache_no_freq_target.pt')
+            torch.save(model, 'checkpoints/deep_cache_testgen_sigmoid_4.pt')
             print('Saved at epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
             print('---------------------')
     print('---------------------')
