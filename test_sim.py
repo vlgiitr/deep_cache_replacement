@@ -126,7 +126,7 @@ def get_prefetch(misses_address,misses_pc,deepcache):
 
 def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
     hit_rates = []
-    deepcache = torch.load("checkpoints/deep_cache_testgen.pt")
+    deepcache = torch.load("checkpoints/deep_cache_grep_sigmoid_6.pt")
     lecar = LeCaR(cache_size)
     print('Total Batches: {}'.format(int(len(ads)/10000)))
 
@@ -168,7 +168,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                 e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                 dist_vector = get_dist(input=e_1,deepcache=deepcache)
                 freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
-                cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000))
+                cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000+1))
                 if freq.item() > freq_max:
                     freq_max = freq.item()
                 elif freq.item() < freq_min:
@@ -178,7 +178,6 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                 elif rec.item() < rec_min:
                     rec_min = rec.item()
             
-    
                 if num_miss == miss_history_length: # Calculate freq and rec for every 15 misses
                     num_miss = 0
                     if len(miss_addresses) >= misses_window:
@@ -199,6 +198,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                             e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                             dist_vector = get_dist(input=e_1,deepcache=deepcache)
                             freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
+                            cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000+1))
                             if freq.item() > freq_max:
                                 freq_max = freq.item()
                             elif freq.item() < freq_min:
@@ -220,22 +220,19 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                                 rec_max = rec.item()
                             elif rec.item() < rec_min:
                                 rec_min = rec.item()
-                            cach_freqs = [x for x,y in list(cache_stats.values())]
-                            cach_reqs = [y for x,y in list(cache_stats.values())]
-                            is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
-
-                            """ delete address from the list also"""
-                            idx = cache_address.index(evicted)
-                            del cache_address[idx]
-                            del cache_pc[idx]
-                            del cache_stats[evicted] # Delete from main cache
-                           
-
-                            """ add requested address to main cache and list """
-                            cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000))
-                            cache_address.append(pref)
-                            cache_pc.append(pref)
-                            print("Exec")
+                            if int(freq.item()*10000) > 1000 or int(rec.item()*10000+1) < 5000:
+                                cach_freqs = [x for x,y in list(cache_stats.values())]
+                                cach_reqs = [y for x,y in list(cache_stats.values())]
+                                is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
+                                """ delete address from the list also"""
+                                idx = cache_address.index(evicted)
+                                del cache_address[idx]
+                                del cache_pc[idx]
+                                del cache_stats[evicted] # Delete from main cache
+                                """ add requested address to main cache and list """
+                                cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000+1))
+                                cache_address.append(pref)
+                                cache_pc.append(pref)
             else:
                 num_miss += 1
                 total_miss+=1
@@ -268,21 +265,19 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                                 rec_max = rec.item()
                             elif rec.item() < rec_min:
                                 rec_min = rec.item()
-                            cach_freqs = [x for x,y in list(cache_stats.values())]
-                            cach_reqs = [y for x,y in list(cache_stats.values())]
-                            is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
-
-                            """ delete address from the list also"""
-                            idx = cache_address.index(evicted)
-                            del cache_address[idx]
-                            del cache_pc[idx]
-                            del cache_stats[evicted] # Delete from main cache
-                            
-
-                            """ add requested address to main cache and list """
-                            cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000))
-                            cache_address.append(pref)
-                            cache_pc.append(pref)
+                            if int(freq.item()*10000) > 1000 or int(rec.item()*10000+1) < 5000:
+                                cach_freqs = [x for x,y in list(cache_stats.values())]
+                                cach_reqs = [y for x,y in list(cache_stats.values())]
+                                is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
+                                """ delete address from the list also"""
+                                idx = cache_address.index(evicted)
+                                del cache_address[idx]
+                                del cache_pc[idx]
+                                del cache_stats[evicted] # Delete from main cache
+                                """ add requested address to main cache and list """
+                                cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000+1))
+                                cache_address.append(pref)
+                                cache_pc.append(pref)
                                      
 
                 if done_prefetch :
@@ -299,21 +294,20 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                     rec_max = rec.item()
                 elif rec.item() < rec_min:
                     rec_min = rec.item()
-                ## Add the eviction func here that removes an address from a cache and updates the cache. Also pls return the value of the address removed 
-                cach_freqs = [x for x,y in list(cache_stats.values())]
-                cach_reqs = [y for x,y in list(cache_stats.values())]
-                is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, address)
 
-                """ delete address from the list also"""
-                idx = cache_address.index(evicted)
-                del cache_address[idx]
-                del cache_pc[idx]
-                del cache_stats[evicted] # Delete from main cache
-
-                """ add requested address to main cache and list """
-                cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000))
-                cache_address.append(address)
-                cache_pc.append(pc)
+                if int(freq.item()*10000) > 1000 or int(rec.item()*10000+1) < 5000:
+                    cach_freqs = [x for x,y in list(cache_stats.values())]
+                    cach_reqs = [y for x,y in list(cache_stats.values())]
+                    is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, address)
+                    """ delete address from the list also"""
+                    idx = cache_address.index(evicted)
+                    del cache_address[idx]
+                    del cache_pc[idx]
+                    del cache_stats[evicted] # Delete from main cache
+                    """ add requested address to main cache and list """
+                    cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000+1))
+                    cache_address.append(address)
+                    cache_pc.append(pc)
                 
 
         hitrate = num_hit / (num_hit + total_miss)
@@ -324,12 +318,12 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
         print('Freq_min: {}'.format(freq_min))
         print('Rec min: {}'.format(rec_min))
         print('---------------------------')
-    return np.mean(hit_rates),freq_max,rec_max
+    return np.mean(hit_rates)
 
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description="Test cache")
-    parser.add_argument("--r", default= "data/csv_data/cse240_project_ucsd/address_pc_files/testgen.csv",
+    parser.add_argument("--r", default= "data/csv_data/cse240_project_ucsd/address_pc_files/grep.csv",
     help="path to test csv file")
     args =  parser.parse_args()
 
@@ -348,10 +342,8 @@ if __name__=='__main__':
     
     print('Count: {}'.format(count))
     print('Testing Started')
-    hitrate,f,r = test_cache_sim(cache_size=32,ads=addresses,ps=pcs,misses_window=30,miss_history_length=10)
+    hitrate = test_cache_sim(cache_size=32,ads=addresses,ps=pcs,misses_window=30,miss_history_length=10)
     print('---------------------------')
     print('Testing Complete')
-    print('Freq_max: {}'.format(f))
-    print('Rec max: {}'.format(r))
     print('Average HitRate: {}'.format(hitrate))
     print('---------------------------')

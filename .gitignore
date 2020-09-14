@@ -1,5 +1,4 @@
 __pycache__/
 utils/__pycache__/
-w2vec_checkpoints/
 runs/
-checkpoints/
+data/

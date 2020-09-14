@@ -268,7 +268,6 @@ if __name__=='__main__':
 
     n_files = 1
     emb_size = 80
-    label_size = 3
     window_size = 30
     hidden_size = 40
     n_bytes = 4
@@ -279,7 +278,7 @@ if __name__=='__main__':
 
     print('Creating Model')
     # model = DeepCache(input_size=2*emb_size,hidden_size=hidden_size,output_size=256)
-    model = torch.load('checkpoints/deep_cache_testgen.pt')
+    model = torch.load('checkpoints/deep_cache_grep_sigmoid_5.pt')
     model.to(device)
 
     xe_loss = nn.CrossEntropyLoss()
@@ -304,9 +303,9 @@ if __name__=='__main__':
             add_target = labels[:,0].to(device)
             loss_address = get_pred_loss(logits,add_target, xe_loss) # Cross entropy loss with address predictions
             freq_target = labels[:,1].float().to(device)
-            freq_target = (freq_target - torch.tensor(0,dtype=float))/torch.tensor(len(dataloader)*batch_size,dtype=float)           
+            freq_target = (freq_target - torch.min(freq_target))/(torch.max(freq_target) - torch.min(freq_target))           
             rec_target = labels[:,2].float().to(device)
-            rec_target = (rec_target - torch.tensor(1,dtype=float))/torch.tensor(len(dataloader)*batch_size,dtype=float)
+            rec_target = (rec_target - torch.min(rec_target))/(torch.max(rec_target) - torch.min(rec_target))
             freq_address = mse_loss(freq, freq_target) #MSE loss with frequency
             rec_address = mse_loss(rec, rec_target) #MSE loss with recency
             loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
@@ -325,7 +324,7 @@ if __name__=='__main__':
         if np.mean(losses) < best_loss:
             best_loss = np.mean(losses)
             best_epoch = epoch+1
-            torch.save(model, 'checkpoints/deep_cache_testgen_2.pt')
+            torch.save(model, 'checkpoints/deep_cache_grep_sigmoid_6.pt')
             print('Saved at epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
             print('---------------------')
     print('---------------------')

@@ -46,6 +46,7 @@ def get_data(p):
     dataset = []
 
     for i,path in enumerate(csv_files):
+        print(path)
         addresses = []
         pcs = []
         count = 0
@@ -267,7 +268,7 @@ def train(trainer,inputs,tkn,arguments,num):
         if total_loss < trainer.best_loss:
             trainer.best_loss = total_loss
             best_epoch = epoch+1
-            torch.save(trainer.model, 'checkpoints/byte_encoder_32.pt')
+            torch.save(trainer.model, 'checkpoints/byte_encoder_32_1.pt')
             print('Saved at epoch {} with loss: {} for dataset: {}'.format(epoch+1,total_loss,num))
             print('----------')
     print('Best Epoch: {}'.format(best_epoch))
@@ -328,11 +329,11 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='HTMLPhish')
     parser.add_argument('--path', type=str, required=True,
                         help='path to dir containing the csv files')
-    parser.add_argument('--epochs', type=int, default=10,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='number of epochs')
-    parser.add_argument('--embed_dim', type=int, default=10,
+    parser.add_argument('--embed_dim', type=int, default=20,
                         help='embedding dimension')
-    parser.add_argument('--context_size', type=int, default=2,
+    parser.add_argument('--context_size', type=int, default=4,
                         help='context_size')       
     parser.add_argument('--hidden_size', type=int, default=128,
                         help='dimension of hidden layer')                  
