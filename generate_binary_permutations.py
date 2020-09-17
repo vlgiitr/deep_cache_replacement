@@ -40,4 +40,4 @@ if __name__ == "__main__":
     data = {'Bytes': save_arr}
 
     new_df = pd.DataFrame(data,columns=['Bytes'])
-    new_df.to_csv('bytes.csv') 
+    new_df.to_csv('dataset/bytes.csv') 

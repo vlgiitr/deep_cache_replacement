@@ -8,11 +8,10 @@ class LeCaR:
     # kwargs: We're using keyword arguments so that they can be passed down as
     #         needed. Please note that cache_size is a required argument and not
     #         optional like all the kwargs are.
-    def __init__(self, cache_size, cache,  **kwargs):
+    def __init__(self, cache_size,  **kwargs):
         # Randomness and Time
-        np.random.seed(123)
-        self.time = time.time()
-        self.cache = cache
+        self.time = time.perf_counter()*100
+        self.cache = pd.DataFrame()
 
         # Cache
         self.cache_size = cache_size
@@ -45,9 +44,9 @@ class LeCaR:
         return len(self.lru) == self.cache_size
 
     # Add Entry to cache with given frequency
-    def addToCache(self, oblock):
+    def addToCache(self, oblock,freq,rec):
         # self.cache['Address'][idx] = oblock
-        self. cache = self.cache.append({'Address': oblock, 'Frequency': np.random.randint(0,10), 'Recency': np.random.randint(0,10)}, ignore_index=True)
+        self.cache = self.cache.append({'Address': oblock, 'Frequency': freq, 'Recency': rec}, ignore_index=True)
 
     
     def addToHistory(self, x, policy):
@@ -70,7 +69,7 @@ class LeCaR:
             idx, evicted = self.get_first(policy_history)
             # del policy_history[evicted.oblock]
             policy_history = policy_history.drop([idx]).reset_index(drop = True) #drop that entry
-        policy_history = policy_history.append({'Address': x, 'Time': time.time()}, ignore_index=True)
+        policy_history = policy_history.append({'Address': x, 'Time': time.perf_counter()*100}, ignore_index=True)
 
         if policy == 0:
             self.lru_hist = policy_history    # Initialize policy histriy to original history
@@ -88,7 +87,7 @@ class LeCaR:
         """
         Get the LRU item in the given frequency preds
         """
-        idx = self.cache[['Recency']].idxmin()[0]
+        idx = self.cache[['Recency']].idxmax()[0]
         return self.cache['Address'][idx]
 
     def getLFU(self):
@@ -110,7 +109,7 @@ class LeCaR:
     # Evict an entry from cache
     # policy : 0 --> lru, 1 --> lfu,  -1 --> same
     def evict(self):
-        """OMKAR SUNIL BHALERAO 
+        """
         Gets lru = 0 / lfu = 1 element
         Chooses policy
         Adds to resp policy history
@@ -154,7 +153,7 @@ class LeCaR:
             self.W = np.array([0.01, 0.99], dtype=np.float32)
 
     # Cache Miss
-    def miss(self, oblock):
+    def miss(self, oblock,freq,rec):
         """
         Check if req belongs to policy hist and update resp policy
         Perform eviction if cache is full
@@ -182,19 +181,25 @@ class LeCaR:
         if len(self.cache) == self.cache_size:
             evicted, policy = self.evict()
 
-        self.addToCache(oblock)
+        self.addToCache(oblock,freq,rec)
         return evicted
 
     # Process and access request for the given oblock    
-    def run(self, oblock) :
+    def run(self, cache_address, freq, rec, oblock) :
+        """
+        takes cache df as input containing rec / freq
+        returns cache with evicted address
+        """
+        self.cache['Address'], self.cache['Frequency'], self.cache['Recency'] = list(cache_address), list(freq), list(rec)
+
         miss = True
         evicted = None
 
-        self.time += 1
+        # self.time += 1
 
         if oblock in self.cache['Address']:
             miss = False
         else:
-            evicted = self.miss(oblock)
+            evicted = self.miss(oblock,freq,rec)
 
-        return miss, evicted, self.cache
+        return miss, evicted, set(self.cache['Address'])

@@ -3,12 +3,10 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from collections import Counter, deque, defaultdict
-from tqdm import tqdm as tqdm 
-
-
+from tqdm import tqdm as tqdm
 
 def get_complete_data_padded():
-    PATH = "csv_data/cse240_project_ucsd"
+    PATH = "dataset/"
     EXT = "*.csv"
     all_csv_files = [file
                     for path, subdir, files in os.walk(PATH)

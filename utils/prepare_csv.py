@@ -120,7 +120,7 @@ def main(args):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Train_overexposure")
+    parser = argparse.ArgumentParser(description="Prepare Data")
     parser.add_argument("--r", required=True,
     help="path to directory containing the files")
     args =  parser.parse_args()

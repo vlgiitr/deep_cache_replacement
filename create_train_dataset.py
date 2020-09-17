@@ -5,8 +5,8 @@ import os
 from glob import glob
 from torch.utils.data import Dataset, DataLoader
 import torch
-from embed_lstm_32 import ByteEncoder
-from embed_lstm_32 import Token
+from embed_32 import ByteEncoder
+from embed_32 import Token
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -41,7 +41,7 @@ def create_inout_sequences(input_x,freq,rec,tw):
 
 
 def get_miss_dataloader(batch_size,window_size,n_files):
-    PATH = "data/csv_data/cse240_project_ucsd/misses/train"
+    PATH = "dataset/misses/train"
     EXT = "*.csv"
     all_csv_files = [file
                     for path, subdir, files in os.walk(PATH)

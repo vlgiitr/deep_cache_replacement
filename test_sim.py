@@ -5,12 +5,12 @@ from math import log
 from tqdm import tqdm
 import torch
 from cache_model_train import DeepCache,Decoder,Decoder_lstm,Encoder,TimeDistributed
-from new_lecar import LeCaR
+from cache_lecar import LeCaR
 import csv
 import glob
 import os
 import argparse
-from embed_lstm_32 import ByteEncoder
+from embed_32 import ByteEncoder
 from sklearn.neighbors import KernelDensity
 import pandas as pd
 
@@ -287,7 +287,7 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description="Test cache")
-    parser.add_argument("--r", default= "data/csv_data/cse240_project_ucsd/address_pc_files/grep.csv",
+    parser.add_argument("--r", default= "dataset/address_pc_files/grep.csv",
     help="path to test csv file")
     args =  parser.parse_args()
 
