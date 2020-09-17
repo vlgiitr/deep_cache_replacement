@@ -126,7 +126,7 @@ def get_prefetch(misses_address,misses_pc,deepcache):
 
 def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
     hit_rates = []
-    deepcache = torch.load("checkpoints/deep_cache_grep_sigmoid_6.pt")
+    deepcache = torch.load("checkpoints/deep_cache.pt")
     lecar = LeCaR(cache_size)
     print('Total Batches: {}'.format(int(len(ads)/10000)))
 
@@ -139,10 +139,6 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
         pc_misses = []
         rec = None
         freq = None
-        rec_min = 100
-        freq_min = 100
-        freq_max = 0
-        rec_max = 0
         cache_stats = {} # dict that stores the elements in cache as keys and their freq and rec as value in tuple
         try:
             addresses = ads[j*10000:(j+1)*10000]
@@ -160,24 +156,19 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
             elif len(list(cache_stats.keys())) < cache_size: # If address is not in cache and the cache is not full yet then increment the num_miss 
                 cache_address.append(address)
                 cache_pc.append(pc)
+                
                 num_miss += 1
                 total_miss+=1
+                
                 miss_addresses.append(address)
                 pc_misses.append(pc)
+                
                 e = get_ad_embeddings([address],[pc],deepcache)
                 e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                 dist_vector = get_dist(input=e_1,deepcache=deepcache)
                 freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
                 cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000+1))
-                if freq.item() > freq_max:
-                    freq_max = freq.item()
-                elif freq.item() < freq_min:
-                    freq_min = freq.item()
-                if rec.item() > rec_max:
-                    rec_max = rec.item()
-                elif rec.item() < rec_min:
-                    rec_min = rec.item()
-            
+
                 if num_miss == miss_history_length: # Calculate freq and rec for every 15 misses
                     num_miss = 0
                     if len(miss_addresses) >= misses_window:
@@ -199,36 +190,24 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                             dist_vector = get_dist(input=e_1,deepcache=deepcache)
                             freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
                             cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000+1))
-                            if freq.item() > freq_max:
-                                freq_max = freq.item()
-                            elif freq.item() < freq_min:
-                                freq_min = freq.item()
-                            if rec.item() > rec_max:
-                                rec_max = rec.item()
-                            elif rec.item() < rec_min:
-                                rec_min = rec.item()
+
                         else :
                             e = get_ad_embeddings([pref],[pc],deepcache)
                             e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                             dist_vector = get_dist(input=e_1,deepcache=deepcache)
                             freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
-                            if freq.item() > freq_max:
-                                freq_max = freq.item()
-                            elif freq.item() < freq_min:
-                                freq_min = freq.item()
-                            if rec.item() > rec_max:
-                                rec_max = rec.item()
-                            elif rec.item() < rec_min:
-                                rec_min = rec.item()
-                            if int(freq.item()*10000) > 1000 or int(rec.item()*10000+1) < 5000:
+                           
+                            if int(freq.item()*10000) > 3000 or int(rec.item()*10000+1) < 7000:
                                 cach_freqs = [x for x,y in list(cache_stats.values())]
                                 cach_reqs = [y for x,y in list(cache_stats.values())]
                                 is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
+                                
                                 """ delete address from the list also"""
                                 idx = cache_address.index(evicted)
                                 del cache_address[idx]
                                 del cache_pc[idx]
                                 del cache_stats[evicted] # Delete from main cache
+                                
                                 """ add requested address to main cache and list """
                                 cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000+1))
                                 cache_address.append(pref)
@@ -257,23 +236,18 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                             e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                             dist_vector = get_dist(input=e_1,deepcache=deepcache)
                             freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
-                            if freq.item() > freq_max:
-                                freq_max = freq.item()
-                            elif freq.item() < freq_min:
-                                freq_min = freq.item()
-                            if rec.item() > rec_max:
-                                rec_max = rec.item()
-                            elif rec.item() < rec_min:
-                                rec_min = rec.item()
-                            if int(freq.item()*10000) > 1000 or int(rec.item()*10000+1) < 5000:
+                            
+                            if int(freq.item()*10000) > 3000 or int(rec.item()*10000+1) < 7000:
                                 cach_freqs = [x for x,y in list(cache_stats.values())]
                                 cach_reqs = [y for x,y in list(cache_stats.values())]
                                 is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, pref)
+                                
                                 """ delete address from the list also"""
                                 idx = cache_address.index(evicted)
                                 del cache_address[idx]
                                 del cache_pc[idx]
                                 del cache_stats[evicted] # Delete from main cache
+                                
                                 """ add requested address to main cache and list """
                                 cache_stats[pref] = (int(freq.item()*10000),int(rec.item()*10000+1))
                                 cache_address.append(pref)
@@ -286,24 +260,18 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
                 e_1 = get_embeddings(list(cache_address),list(cache_pc),deepcache)
                 dist_vector = get_dist(input=e_1,deepcache=deepcache)
                 freq,rec = get_freq_rec_ad_pc(deepcache=deepcache,dist_vector=dist_vector,embeddings=e)
-                if freq.item() > freq_max:
-                    freq_max = freq.item()
-                elif freq.item() < freq_min:
-                    freq_min = freq.item()
-                if rec.item() > rec_max:
-                    rec_max = rec.item()
-                elif rec.item() < rec_min:
-                    rec_min = rec.item()
 
-                if int(freq.item()*10000) > 1000 or int(rec.item()*10000+1) < 5000:
+                if int(freq.item()*10000) > 3000 or int(rec.item()*10000+1) < 7000:
                     cach_freqs = [x for x,y in list(cache_stats.values())]
                     cach_reqs = [y for x,y in list(cache_stats.values())]
                     is_miss, evicted, up_cache = lecar.run(list(cache_stats.keys()), cach_freqs, cach_reqs, address)
+                    
                     """ delete address from the list also"""
                     idx = cache_address.index(evicted)
                     del cache_address[idx]
                     del cache_pc[idx]
                     del cache_stats[evicted] # Delete from main cache
+                    
                     """ add requested address to main cache and list """
                     cache_stats[address] = (int(freq.item()*10000),int(rec.item()*10000+1))
                     cache_address.append(address)
@@ -313,10 +281,6 @@ def test_cache_sim(cache_size, ads, ps, misses_window, miss_history_length):
         hitrate = num_hit / (num_hit + total_miss)
         hit_rates.append(hitrate)
         print('HitRate for batch {}: {}'.format(j+1,hitrate))
-        print('Freq_max: {}'.format(freq_max))
-        print('Rec max: {}'.format(rec_max))
-        print('Freq_min: {}'.format(freq_min))
-        print('Rec min: {}'.format(rec_min))
         print('---------------------------')
     return np.mean(hit_rates)
 
@@ -342,7 +306,7 @@ if __name__=='__main__':
     
     print('Count: {}'.format(count))
     print('Testing Started')
-    hitrate = test_cache_sim(cache_size=32,ads=addresses,ps=pcs,misses_window=30,miss_history_length=10)
+    hitrate = test_cache_sim(cache_size=32,ads=addresses,ps=pcs,misses_window=50,miss_history_length=30)
     print('---------------------------')
     print('Testing Complete')
     print('Average HitRate: {}'.format(hitrate))

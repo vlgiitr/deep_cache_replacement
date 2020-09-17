@@ -80,9 +80,6 @@ class TimeDistributed(nn.Module):
         self.batch_first = batch_first
 
     def forward(self, x):
-        # if torch.isnan(x).any().item():
-        #     print('TimeDistributed INPUT is NaN')
-
         if len(x.size()) <= 2:
             return self.module(x)
 
@@ -95,9 +92,7 @@ class TimeDistributed(nn.Module):
         if self.batch_first:
             y = y.contiguous().view(x.size(0), -1, y.size(-1))  # (samples, timesteps, output_size)
         else:
-            y = y.view(-1, x.size(1), y.size(-1))  # (timesteps, samples, output_size)
-        # if torch.isnan(y).any().item():
-        #     print('TimeDistributed OUTPUT is NaN')
+            y = y.view(-1, x.size(1), y.size(-1))  # (timesteps, samples, output_size))
 
         return y
     
@@ -115,14 +110,8 @@ class Encoder(nn.Module):
         self.linear = nn.Linear(emb_size*4, emb_size)
     
     def forward(self,x):
-        # if torch.isnan(x).any().item():
-        #     print('Encoder Input is NaN')
         x = self.linear(x)
         x = torch.sigmoid(x)
-        # if torch.isnan(x).any().item():
-        #     print(self.linear.weight)
-        #     print('Encoder Output is NaN')
-        #     exit()
         return x
 
     
@@ -169,10 +158,6 @@ class DeepCache(nn.Module):
         return torch.sigmoid(output)
 
     def get_distribution_vector(self, input):
-        # if torch.isnan(input).any().item():
-        #     print('-----------------------------------')
-        #     print('get_distribution_vector INPUT is NaN')
-
         dist_vector = torch.zeros(input.shape[0],input.shape[2]) # initilise the dist vector
 
         for i in range(input.shape[0]):
@@ -224,8 +209,6 @@ class DeepCache(nn.Module):
         return embeddings
 
     def forward(self, input, hidden_cell):  
-        # if torch.isnan(input).any().item():
-        #     print('Forward INPUT is NaN')
         pc      = input[:,:,0:1] 
         address = input[:,:,1:2] # Address value in decimal
         
@@ -234,12 +217,9 @@ class DeepCache(nn.Module):
         # time distributed MLP because we need to apply it on every element of the sequence
         embeddings_pc = self.time_distributed_encoder_mlp(pc_embed) # Convert 4byte embedding to a single address embedding using an MLP
         embeddings_address = self.time_distributed_encoder_mlp(addr_embed)
-        # if torch.isnan(embeddings_pc).any().item():
-        #     print('embeddings_pc is NaN')
-        # if torch.isnan(embeddings_address).any().item():
-        #     print('embeddings_address is NaN')
-        # concat pc and adress emeddings
+
         embeddings = torch.cat([embeddings_pc,embeddings_address] ,dim=-1)
+
         # get distribution vector using KDE
         dist_vector = self.get_distribution_vector(embeddings)
 
@@ -277,8 +257,7 @@ if __name__=='__main__':
     batch_size = args.batch_size
 
     print('Creating Model')
-    # model = DeepCache(input_size=2*emb_size,hidden_size=hidden_size,output_size=256)
-    model = torch.load('checkpoints/deep_cache_grep_sigmoid_5.pt')
+    model = DeepCache(input_size=2*emb_size,hidden_size=hidden_size,output_size=256)
     model.to(device)
 
     xe_loss = nn.CrossEntropyLoss()
@@ -294,24 +273,30 @@ if __name__=='__main__':
         i = 0
         for (seq,labels) in tqdm(dataloader):
             i+=1
+            
             optimizer.zero_grad()
             hidden_cell = (torch.zeros(1, batch_size, model.hidden_size).to(device), # reinitialise hidden state for each new sample
                             torch.zeros(1, batch_size, model.hidden_size).to(device))
+            
             probs, logits, freq, rec = model(input = seq.to(device),hidden_cell=hidden_cell)
-            # print('Freq: {}'.format(freq))
-            # print('Rec: {}'.format(rec))
+            
             add_target = labels[:,0].to(device)
             loss_address = get_pred_loss(logits,add_target, xe_loss) # Cross entropy loss with address predictions
+            
             freq_target = labels[:,1].float().to(device)
             freq_target = (freq_target - torch.min(freq_target))/(torch.max(freq_target) - torch.min(freq_target))           
+            
             rec_target = labels[:,2].float().to(device)
             rec_target = (rec_target - torch.min(rec_target))/(torch.max(rec_target) - torch.min(rec_target))
+            
             freq_address = mse_loss(freq, freq_target) #MSE loss with frequency
             rec_address = mse_loss(rec, rec_target) #MSE loss with recency
             loss = (alpha)*loss_address + (beta)*freq_address + (1-alpha-beta)*rec_address
+            
             loss.backward()
             losses.append(loss.item())
-            # ...log the running loss
+            
+            # log the running loss
             writer.add_scalar('loss/train/', loss.item(), epoch*len(dataloader) + i-1)
             writer.add_scalar('loss/address/', loss_address, epoch*len(dataloader) + i-1)
             writer.add_scalar('loss/freq/', freq_address, epoch*len(dataloader) + i-1)
@@ -324,7 +309,7 @@ if __name__=='__main__':
         if np.mean(losses) < best_loss:
             best_loss = np.mean(losses)
             best_epoch = epoch+1
-            torch.save(model, 'checkpoints/deep_cache_grep_sigmoid_6.pt')
+            torch.save(model, 'checkpoints/deep_cache_grep_sigmoid_10.pt')
             print('Saved at epoch {} with loss: {}'.format(epoch+1,np.mean(losses)))
             print('---------------------')
     print('---------------------')
