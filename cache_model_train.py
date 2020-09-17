@@ -6,8 +6,8 @@ import pandas as pd
 import utils.dataset as dataset
 import random
 import utils.dataset
-from embed_32 import ByteEncoder
-from embed_32 import Token
+from embed_lstm_32 import ByteEncoder
+from embed_lstm_32 import Token
 from sklearn.neighbors import KernelDensity
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader

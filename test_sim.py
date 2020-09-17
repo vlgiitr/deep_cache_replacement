@@ -10,7 +10,7 @@ import csv
 import glob
 import os
 import argparse
-from embed_32 import ByteEncoder
+from embed_lstm_32 import ByteEncoder
 from sklearn.neighbors import KernelDensity
 import pandas as pd
 

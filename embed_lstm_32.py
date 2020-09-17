@@ -329,7 +329,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='HTMLPhish')
     parser.add_argument('--path', type=str, required=True,
                         help='path to dir containing the csv files')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('path to dir containing the csv files', type=int, default=100,
                         help='number of epochs')
     parser.add_argument('--embed_dim', type=int, default=20,
                         help='embedding dimension')

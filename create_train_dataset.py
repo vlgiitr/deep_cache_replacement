@@ -5,8 +5,8 @@ import os
 from glob import glob
 from torch.utils.data import Dataset, DataLoader
 import torch
-from embed_32 import ByteEncoder
-from embed_32 import Token
+from embed_lstm_32 import ByteEncoder
+from embed_lstm_32 import Token
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
