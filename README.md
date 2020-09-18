@@ -1,5 +1,5 @@
 # DEAP Cache: Deep Eviction Admission and Prefetching for Cache
-Ayush Mangal, Jitesh Jain, Keerat Kaur Guliani, Omkar Sunil Bhalerao
+Ayush Mangal*, Jitesh Jain*, Keerat Kaur Guliani*, Omkar Sunil Bhalerao*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![AAAI 2021](https://img.shields.io/badge/Conference-AAAI-brightgreen.svg)](https://aaai.org/Conferences/AAAI-21/student-abstract-call/)
