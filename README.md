@@ -2,7 +2,6 @@
 Ayush Mangal*, Jitesh Jain*, Keerat Kaur Guliani*, Omkar Bhalerao*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![AAAI 2021](https://img.shields.io/badge/Conference-AAAI-brightgreen.svg)](https://aaai.org/Conferences/AAAI-21/student-abstract-call/)
 ![Framework: Pytorch](https://img.shields.io/badge/Framework-Pytorch-orange.svg)
 
 ## Contents
@@ -15,7 +14,7 @@ Ayush Mangal*, Jitesh Jain*, Keerat Kaur Guliani*, Omkar Bhalerao*
 
 ## 1. Overview
 
-This repo contains the code for the paper **DEAP Cache: Deep Eviction Admission and Prefetching for Cache** submitted at **AAAI 2021** as a *Student Abstract Paper*.
+This repo contains the code for the paper **DEAP Cache: Deep Eviction Admission and Prefetching for Cache**.
 
 ## 2. Setup Instructions
 
