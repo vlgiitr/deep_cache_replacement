@@ -71,7 +71,7 @@ The hit-rates for various baselines and **our** approach are given in the table 
 | LFU     | 0.43          |
 | FIFO    | 0.36          |
 | LIFO    | 0.03          |
-| LRU     | 0.54          |
+| BELADY  | 0.54          |
 | **Ours**| **0.48**      |
 
 It can be observed that our method comes the closest in performance to the optimal figure obtained from BELADY’s algorithm (Oracle), thus demonstrating the validity of our approach.
