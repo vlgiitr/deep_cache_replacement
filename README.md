@@ -2,7 +2,7 @@
 Ayush Mangal*, Jitesh Jain*, Keerat Kaur Guliani*, Omkar Bhalerao*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-![Framework: Pytorch](https://img.shields.io/badge/Framework-Pytorch-orange.svg)
+[![Framework: PyTorch](https://img.shields.io/badge/Framework-PyTorch-orange.svg)](https://pytorch.org/)
 
 ## Contents
 1. [Overview](#1-overview)
