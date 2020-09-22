@@ -14,7 +14,7 @@ Ayush Mangal*, Jitesh Jain*, Keerat Kaur Guliani*, Omkar Bhalerao*
 
 ## 1. Overview
 
-This repo contains the code for the paper **DEAP Cache: Deep Eviction Admission and Prefetching for Cache**.
+This repo contains the code for the paper [DEAP Cache: Deep Eviction Admission and Prefetching for Cache](https://arxiv.org/abs/2009.09206).
 
 ## 2. Setup Instructions
 
